@@ -1,0 +1,8 @@
+:80 {
+    root * /app/dist
+    encode gzip zstd
+    file_server
+
+    # SPA Routing fallback
+    try_files {path} /index.html
+}
