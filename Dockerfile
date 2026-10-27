@@ -25,7 +25,8 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy custom nginx configuration with SPA fallback
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose HTTP port
+# Expose HTTP ports (4004 for Coolify, 80 as fallback)
+EXPOSE 4004
 EXPOSE 80
 
 # Run nginx in foreground
