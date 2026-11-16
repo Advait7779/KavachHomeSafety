@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { Eye, Bug, ShieldCheck, Stairs, ArrowRight, Check, PhoneCall } from '@phosphor-icons/react'
 import PageTransition from '../components/PageTransition'
 import AnimatedSection from '../components/AnimatedSection'
+import { useSite, telHref } from '../site/SiteContext'
 
-const services = [
+const defaultServices = [
   {
     id: 'invisible-grills',
     icon: Eye,
@@ -76,6 +77,9 @@ const services = [
 ]
 
 export default function Services() {
+  const site = useSite()
+  const icons = [Eye, Bug, ShieldCheck, Stairs]
+  const services = (site.services || defaultServices).map((service, index) => ({ ...service, icon: icons[index % icons.length] }))
   return (
     <PageTransition>
       {/* Hero */}
@@ -131,6 +135,8 @@ export default function Services() {
                         <img
                           src={service.image}
                           alt={service.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-kavach-dark/60 via-transparent to-transparent" />
@@ -174,7 +180,7 @@ export default function Services() {
                         <ArrowRight size={14} weight="bold" />
                       </Link>
                       <a
-                        href="tel:+917219700401"
+                        href={telHref(site.business.phone)}
                         className="px-3.5 py-2.5 sm:px-5 sm:py-3 rounded-full grey-inset border border-kavach-border text-[11px] xs:text-xs sm:text-sm font-semibold text-slate-300 hover:text-white inline-flex items-center justify-center gap-1.5 sm:gap-2 text-center whitespace-nowrap"
                       >
                         <PhoneCall size={15} weight="bold" className="text-kavach-orange" />
@@ -239,11 +245,11 @@ export default function Services() {
               </p>
               <div className="flex flex-row justify-center items-center gap-2 sm:gap-3.5">
                 <a
-                  href="tel:+917219700401"
+                  href={telHref(site.business.phone)}
                   className="btn-primary rounded-full inline-flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg text-center !py-2.5 !px-3.5 sm:!py-3 sm:!px-6 text-[11px] xs:text-xs sm:text-sm font-semibold whitespace-nowrap"
                 >
                   <PhoneCall size={15} weight="bold" />
-                  <span>Call +91 7219700401</span>
+                  <span>Call +91 {site.business.phone}</span>
                 </a>
                 <Link
                   to="/contact"

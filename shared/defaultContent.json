@@ -1,0 +1,242 @@
+{
+  "business": {
+    "name": "Kavach",
+    "tagline": "Safety Grills & Nets",
+    "phone": "7219700401",
+    "secondaryPhone": "7507040406",
+    "whatsapp": "7219700401",
+    "address": "Padmavati building, kale colony lane no 2, aalandi dighi road, charholi pune",
+    "logo": "/logo.jpg",
+    "gstin": "",
+    "paymentDetails": "",
+    "billTerms": "Thank you for choosing Kavach."
+  },
+  "home": {
+    "eyebrow": "Premier Invisible Grills & Nets • Pune",
+    "titleLine1": "Invisible Safety.",
+    "titleHighlight": "Uncompromised",
+    "titleLine2": "Views.",
+    "description": "Engineered with 316 marine-grade stainless steel cables and high-precision mosquito meshes. Designed for modern Pune high-rises and villas.",
+    "heroImage": "/images/hero-building.jpg",
+    "ctaTitle": "Ready to Secure Your Pune Home?",
+    "ctaDescription": "Our technicians are based locally in Charholi & Alandi Dighi Road. Request an obligation-free measurement visit today.",
+    "stats": [
+      {
+        "value": 500,
+        "suffix": "+",
+        "label": "Homes Protected"
+      },
+      {
+        "value": 6,
+        "suffix": "+",
+        "label": "Years Experience"
+      },
+      {
+        "value": 100,
+        "suffix": "%",
+        "label": "Customer Satisfaction"
+      }
+    ]
+  },
+  "contact": {
+    "heading": "Request a Free Site Survey",
+    "intro": "Have our certified technician visit your balcony or window in Pune with physical cable and mesh samples. 100% free with zero visit charges.",
+    "formIntro": "Submit this form to instantly initiate a conversation with our technical team on WhatsApp.",
+    "mapUrl": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3780.5!2d73.87!3d18.67!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTjCsDQwJzEyLjAiTiA3M8KwNTInMTIuMCJF!5e0!3m2!1sen!2sin!4v1",
+    "enquiryOptions": [
+      "Invisible Safety Grills (Balcony/Window)",
+      "Mosquito Net Systems (Fiberglass/SS)",
+      "Balcony Child Safety Combo",
+      "Staircase & Duplex Wire Railings",
+      "Full Home Combo (Grills + Nets)"
+    ]
+  },
+  "services": [
+    {
+      "id": "invisible-grills",
+      "title": "Invisible Safety Grilles",
+      "tagline": "Modern Architectural Safety",
+      "image": "/images/invisible-grill-balcony.jpg",
+      "description": "Engineered with premium SS316 marine-grade tensile cables. Provides high security for high-rises and balconies without obstructing light, wind, or outside scenery.",
+      "features": [
+        "SS316 Marine Grade Anti-Corrosive Cables",
+        "Tensile Strength: 250+ kg Breaking Load",
+        "Tension Spacing: 2 to 3 Inches",
+        "Nylon Coated for Weather & UV Protection",
+        "Zero Obstruction to Panoramic Skyline",
+        "10-Year Warranty & Zero Maintenance"
+      ]
+    },
+    {
+      "id": "mosquito-nets",
+      "title": "Mosquito & Insect Mesh Systems",
+      "tagline": "Pest-Free Ventilation",
+      "image": "/images/mosquito-net-window.jpg",
+      "description": "Custom-measured European standard mosquito net screens for windows, French doors, and balconies. Durable fiberglass and SS mesh engineered to keep all pests out.",
+      "features": [
+        "High-Density Fiberglass & SS304 Mesh",
+        "Heavy Duty Powder-Coated Aluminium Frames",
+        "Sliding, Openable & Pleated Configurations",
+        "High Airflow & Natural Sunlight Permeability",
+        "Washable & Easy to Detach for Cleaning",
+        "Smooth Precision Roller Bearings"
+      ]
+    },
+    {
+      "id": "balcony-safety",
+      "title": "High-Rise Balcony Child Safety",
+      "tagline": "Complete Peace of Mind",
+      "image": "/images/child-safety-balcony.jpg",
+      "description": "Specialized vertical and horizontal invisible cable systems engineered for homes with toddlers, pets, and seniors. Meets high-rise building safety specifications.",
+      "features": [
+        "Child-Proof Cable Gaps (< 3 Inches)",
+        "Tamper-Proof Concealed Mounting Track",
+        "No Sharp Edges or Dangerous Protrusions",
+        "Compatible with Glass, MS & Brick Railings",
+        "Fire Evacuation Safe with Wire Cutters",
+        "Compliant with Society Architectural Guidelines"
+      ]
+    },
+    {
+      "id": "staircase-grills",
+      "title": "Staircase & Duplex Cable Railings",
+      "tagline": "Interior Luxury Protection",
+      "image": "/images/staircase-grill.jpg",
+      "description": "Minimalist invisible wire railings for modern villas, duplex apartments, and commercial lobbies. Replaces bulky vertical banisters with elegant stainless cables.",
+      "features": [
+        "Minimalist Floor-to-Ceiling or Rail Cable Runs",
+        "Matches Modern Wood, Marble & Concrete Steps",
+        "Concealed Tensioners & Anchor Hardware",
+        "Ideal for Open Stringer & Floating Stairs",
+        "Prevents Accidental Fall Hazards Indoors",
+        "Custom Finishes for Matching Interior Themes"
+      ]
+    }
+  ],
+  "gallery": [
+    {
+      "src": "/images/invisible-grill-balcony.jpg",
+      "title": "High-Rise Balcony Invisible Grills",
+      "category": "Invisible Grills",
+      "location": "Charholi, Pune"
+    },
+    {
+      "src": "/images/gallery-modern-villa-balcony.jpg",
+      "title": "Villa Glass Balcony Invisible Grills",
+      "category": "Invisible Grills",
+      "location": "Baner, Pune"
+    },
+    {
+      "src": "/images/child-safety-balcony.jpg",
+      "title": "High-Elevation Child Play Safety Barrier",
+      "category": "Balcony Safety",
+      "location": "Hinjewadi, Pune"
+    },
+    {
+      "src": "/images/gallery-window-invisible-grill.jpg",
+      "title": "Architectural Window Safety Grills",
+      "category": "Window Safety",
+      "location": "Dhanori, Pune"
+    },
+    {
+      "src": "/images/gallery-highrise-balcony-grill.jpg",
+      "title": "Floor-to-Ceiling High-Rise Grills",
+      "category": "Invisible Grills",
+      "location": "Skyline High-Rise, Pune"
+    },
+    {
+      "src": "/images/gallery-night-balcony-grill.jpg",
+      "title": "Night View Balcony Safety Grills",
+      "category": "Balcony Safety",
+      "location": "Wakad, Pune"
+    }
+  ],
+  "reviews": [
+    {
+      "id": 1,
+      "name": "Sachin Jagtap",
+      "location": "Pride World City, Charholi",
+      "service": "Invisible Grills (9th Floor)",
+      "date": "2 weeks ago",
+      "text": "Got invisible grills for our 9th floor balcony in Charholi. The team came on time for measurement and finished the entire fitting next afternoon. Very neat work, cables are hardly visible from the living room."
+    },
+    {
+      "id": 2,
+      "name": "Snehal & Rohit Patil",
+      "location": "Dighi, Pune",
+      "service": "Child Safety Balcony Cables",
+      "date": "1 month ago",
+      "text": "We have a 2 year old daughter so balcony safety was our biggest worry. Local fabricators quoted heavy iron grills which would ruin the society look. Kavach team suggested 2.5mm SS316 wire. Sturdy, clean and looks very modern."
+    },
+    {
+      "id": 3,
+      "name": "Aniket Kulkarni",
+      "location": "Alandi Road, Pune",
+      "service": "Invisible Grills + Mosquito Mesh",
+      "date": "3 weeks ago",
+      "text": "Installed both mosquito net and balcony invisible grills together. Mesh sliding is super smooth, no mosquitoes even with windows wide open in the evening. Very reasonable package rate."
+    },
+    {
+      "id": 4,
+      "name": "Rajesh Nair",
+      "location": "Moshi High-Street",
+      "service": "3 Balconies Package",
+      "date": "1 month ago",
+      "text": "Prompt response on WhatsApp. The technicians were polite and cleaned up the drill dust after finishing work. Cables are tensioned tight with zero slack. Highly recommend them for high-rise flats in PCMC."
+    },
+    {
+      "id": 5,
+      "name": "Vikas Gaikwad",
+      "location": "Dhanori, Pune",
+      "service": "Balcony Wire Grills",
+      "date": "2 months ago",
+      "text": "I was skeptical if thin wires can actually hold weight, but the technician demonstrated by pulling with full body force on the tensioned cables. Very solid fitting. Society committee had no objection."
+    },
+    {
+      "id": 6,
+      "name": "Pooja Mehta",
+      "location": "Ravet, Pune",
+      "service": "Mosquito Mesh Windows",
+      "date": "3 weeks ago",
+      "text": "Quick 1-day work for 3 bedroom windows. Good quality powder-coated aluminium frame matching our window colour. Mesh is sturdy and does not bend. Rates are quite fair compared to others in market."
+    },
+    {
+      "id": 7,
+      "name": "Sandeep More",
+      "location": "Wagholi, Pune",
+      "service": "Dry Balcony Pigeon Protection",
+      "date": "2 weeks ago",
+      "text": "Pigeon problem was terrible on our dry balcony. After installing Kavach safety wires, birds stopped entering completely and air flow is 100% unaffected. Cleaning balcony is finally peaceful."
+    },
+    {
+      "id": 8,
+      "name": "Mahesh Shinde",
+      "location": "Tingre Nagar, Pune",
+      "service": "Full Apartment Safety Grills",
+      "date": "Last month",
+      "text": "Decent and professional guys. Took proper measurements on Thursday, installed on Saturday morning. Zero vibration or rattling even during heavy monsoon winds. Very happy with the job."
+    }
+  ],
+  "seo": {
+    "home": {
+      "title": "Invisible Safety Grills & Mosquito Nets in Pune | Kavach",
+      "description": "Explore invisible safety grills and mosquito net systems for balconies, windows and homes in Pune. Request a site survey from Kavach.",
+      "image": "/images/invisible-grill-balcony.jpg"
+    },
+    "services": {
+      "title": "Safety Grills & Mosquito Net Services in Pune | Kavach",
+      "description": "See Kavach's invisible safety grills, mosquito mesh systems, balcony safety options and staircase cable railings for Pune homes.",
+      "image": "/images/invisible-grill-balcony.jpg"
+    },
+    "gallery": {
+      "title": "Safety Grill & Mosquito Net Projects in Pune | Kavach",
+      "description": "Browse Kavach's balcony grill, window safety and mosquito net project gallery, with details of each installation in Pune.",
+      "image": "/images/gallery-modern-villa-balcony.jpg"
+    },
+    "contact": {
+      "title": "Request a Safety Grill Site Survey in Pune | Kavach",
+      "description": "Contact Kavach about invisible safety grills, mosquito nets and balcony safety in Pune. Share your project details and request a site survey.",
+      "image": "/images/invisible-grill-balcony.jpg"
+    }
+  }
+}

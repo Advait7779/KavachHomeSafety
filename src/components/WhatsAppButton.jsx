@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion'
+import { useSite, whatsappHref } from '../site/SiteContext'
 
 export default function WhatsAppButton() {
+  const { business } = useSite()
   return (
     <motion.a
-      href="https://wa.me/917219700401?text=Hi%2C%20I%27m%20interested%20in%20your%20safety%20grill%20services"
+      href={whatsappHref(business.whatsapp, "Hi, I'm interested in your safety grill services")}
       target="_blank"
       rel="noopener noreferrer"
       className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full shadow-2xl shadow-black/50 transition-all border border-white/20 group active:scale-90"

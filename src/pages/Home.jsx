@@ -5,8 +5,9 @@ import PageTransition from '../components/PageTransition'
 import AnimatedSection from '../components/AnimatedSection'
 import useCountUp from '../hooks/useCountUp'
 import ReviewsSlider from '../components/ReviewsSlider'
+import { useSite, telHref } from '../site/SiteContext'
 
-const services = [
+const defaultServices = [
   {
     icon: Eye,
     title: 'Invisible Safety Grills',
@@ -24,12 +25,6 @@ const services = [
   },
 ]
 
-const stats = [
-  { value: 500, suffix: '+', label: 'Homes Protected' },
-  { value: 6, suffix: '+', label: 'Years Experience' },
-  { value: 100, suffix: '%', label: 'Customer Satisfaction' },
-]
-
 function StatCard({ value, suffix, label }) {
   const { count, ref } = useCountUp(value)
   return (
@@ -43,6 +38,13 @@ function StatCard({ value, suffix, label }) {
 }
 
 export default function Home() {
+  const site = useSite()
+  const { home, business } = site
+  const services = defaultServices.map((service, index) => ({
+    ...service,
+    title: site.services[index]?.title || service.title,
+    desc: site.services[index]?.description || service.desc,
+  }))
   return (
     <PageTransition>
       {/* Hero Section */}
@@ -50,8 +52,9 @@ export default function Home() {
         {/* Background Image with refined slate overlays (not pitch black) */}
         <div className="absolute inset-0">
           <img
-            src="/images/hero-building.jpg"
+            src={home.heroImage}
             alt="Modern building with safety grills"
+            fetchPriority="high"
             className="w-full h-full object-cover object-center"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-[#13161c]/80 via-[#13161c]/60 to-[#13161c]" />
@@ -68,7 +71,7 @@ export default function Home() {
             >
               <div className="inline-flex items-center gap-2 text-kavach-orange text-xs sm:text-sm font-semibold tracking-widest uppercase mb-4 sm:mb-6">
                 <span className="w-1.5 h-1.5 bg-kavach-orange rounded-full flex-shrink-0" />
-                <span>Premier Invisible Grills & Nets • Pune</span>
+                <span>{home.eyebrow}</span>
               </div>
             </motion.div>
 
@@ -78,9 +81,9 @@ export default function Home() {
               transition={{ duration: 0.7, delay: 0.3 }}
               className="text-3xl xs:text-4xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.15] mb-5 sm:mb-6 text-white tracking-tight break-words"
             >
-              Invisible Safety.
+              {home.titleLine1}
               <br />
-              <span className="gradient-text">Uncompromised</span> Views.
+              <span className="gradient-text">{home.titleHighlight}</span> {home.titleLine2}
             </motion.h1>
 
             <motion.p
@@ -89,7 +92,7 @@ export default function Home() {
               transition={{ duration: 0.7, delay: 0.45 }}
               className="text-sm sm:text-lg text-slate-300 max-w-xl mb-6 sm:mb-8 leading-relaxed font-normal"
             >
-              Engineered with 316 marine-grade stainless steel cables and high-precision mosquito meshes. Designed for modern Pune high-rises and villas.
+              {home.description}
             </motion.p>
 
             <motion.div
@@ -122,7 +125,7 @@ export default function Home() {
           <AnimatedSection>
             <div className="grey-inset rounded-3xl p-4 sm:p-6 border border-kavach-border/80 shadow-2xl backdrop-blur-xl">
               <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-kavach-border/70">
-                {stats.map((stat) => (
+                {home.stats.map((stat) => (
                   <StatCard key={stat.label} {...stat} />
                 ))}
               </div>
@@ -198,6 +201,8 @@ export default function Home() {
                   <img
                     src="/images/invisible-grill-balcony.jpg"
                     alt="Invisible grill installation on balcony"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-kavach-dark/70 via-transparent to-transparent" />
@@ -243,11 +248,11 @@ export default function Home() {
                   <ArrowRight size={14} weight="bold" />
                 </Link>
                 <a
-                  href="tel:+917219700401"
+                  href={telHref(business.phone)}
                   className="px-3.5 py-2.5 sm:px-5 sm:py-3 rounded-full grey-inset border border-kavach-border text-[11px] xs:text-xs sm:text-sm font-semibold text-slate-300 hover:text-white inline-flex items-center justify-center gap-1.5 sm:gap-2 text-center whitespace-nowrap"
                 >
                   <PhoneCall size={15} weight="bold" className="text-kavach-orange" />
-                  <span>+91 7219700401</span>
+                  <span>+91 {business.phone}</span>
                 </a>
               </div>
             </AnimatedSection>
@@ -273,18 +278,18 @@ export default function Home() {
               <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-64 h-64 bg-kavach-amber/10 rounded-full blur-3xl pointer-events-none" />
 
               <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-3 sm:mb-4">
-                Ready to Secure Your Pune Home?
+                {home.ctaTitle}
               </h2>
               <p className="text-slate-300 max-w-xl mx-auto mb-6 sm:mb-8 text-xs sm:text-base leading-relaxed">
-                Our technicians are based locally in Charholi & Alandi Dighi Road. Request an obligation-free measurement visit today.
+                {home.ctaDescription}
               </p>
               <div className="flex flex-row justify-center items-center gap-2 sm:gap-3.5">
                 <a
-                  href="tel:+917219700401"
+                  href={telHref(business.phone)}
                   className="btn-primary rounded-full inline-flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg text-center !py-2.5 !px-3.5 sm:!py-3 sm:!px-6 text-[11px] xs:text-xs sm:text-sm font-semibold whitespace-nowrap"
                 >
                   <PhoneCall size={15} weight="bold" />
-                  <span>Call +91 7219700401</span>
+                  <span>Call +91 {business.phone}</span>
                 </a>
                 <Link
                   to="/contact"

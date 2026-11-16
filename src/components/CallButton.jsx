@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion'
 import { PhoneCall } from '@phosphor-icons/react'
+import { useSite, telHref } from '../site/SiteContext'
 
 export default function CallButton() {
+  const { business } = useSite()
   return (
     <motion.a
-      href="tel:+917219700401"
+      href={telHref(business.phone)}
       className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-50 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-tr from-kavach-orange to-kavach-amber text-slate-950 rounded-full shadow-2xl shadow-black/50 transition-all border border-amber-300/40 group active:scale-90"
       initial={{ scale: 0 }}
       animate={{ scale: 1 }}

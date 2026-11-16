@@ -9,9 +9,12 @@ import Contact from './pages/Contact'
 import ScrollToTop from './components/ScrollToTop'
 import WhatsAppButton from './components/WhatsAppButton'
 import CallButton from './components/CallButton'
+import AdminApp from './admin/AdminApp'
 
 function App() {
   const location = useLocation()
+
+  if (location.pathname.startsWith('/admin')) return <AdminApp />
 
   return (
     <div className="min-h-screen bg-kavach-black text-white overflow-x-hidden flex flex-col justify-between">

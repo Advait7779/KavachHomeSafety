@@ -9,8 +9,16 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-server
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+uploads/
+/output/
+.pgtest/
+.pg-preview/
 
 # Editor directories and files
 .vscode/*

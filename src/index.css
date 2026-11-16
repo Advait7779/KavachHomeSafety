@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,300..700;1,300..700&display=swap');
 @import 'tailwindcss';
 
 @theme {
@@ -115,6 +114,83 @@
     transform: translateY(-2px);
     box-shadow: 0 10px 25px rgba(232, 135, 30, 0.25);
   }
+
+  .admin-card {
+    background: var(--color-kavach-card);
+    border: 1px solid var(--color-kavach-border);
+    border-radius: 1rem;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  }
+
+  .admin-label {
+    display: block;
+    color: #cbd5e1;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .admin-input {
+    width: 100%;
+    background: var(--color-kavach-inset);
+    border: 1px solid var(--color-kavach-border);
+    border-radius: 0.65rem;
+    color: white;
+    padding: 0.7rem 0.9rem;
+    outline: none;
+    font-size: 0.875rem;
+  }
+
+  .admin-input:focus { border-color: var(--color-kavach-orange); }
+
+  .document-editor .admin-input {
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+  }
+
+  .document-tab {
+    display: inline-flex;
+    flex: 0 0 112px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 112px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--color-kavach-border);
+    border-radius: 0.65rem;
+    background: var(--color-kavach-inset);
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .document-tab--active {
+    border-color: var(--color-kavach-orange);
+    background: var(--color-kavach-orange);
+    color: #0f1217;
+  }
+
+  .document-tab:disabled { opacity: 0.6; cursor: wait; }
+
+  .admin-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    background: var(--color-kavach-inset);
+    color: #e2e8f0;
+    border: 1px solid var(--color-kavach-border);
+    border-radius: 0.65rem;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .admin-secondary:hover { border-color: var(--color-kavach-orange); color: white; }
 
   .section-padding {
     padding: 3.5rem 1rem;

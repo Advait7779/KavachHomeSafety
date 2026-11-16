@@ -1,6 +1,11 @@
 node_modules
 dist
+dist-server
 .git
 .gitignore
 .gemini
 *.log
+.env*
+.pgtest
+.pg-preview
+uploads

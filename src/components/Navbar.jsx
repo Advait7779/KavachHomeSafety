@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { List, X, PhoneCall, ArrowRight } from '@phosphor-icons/react'
 import WhatsAppIcon from './WhatsAppIcon'
+import { useSite, telHref, whatsappHref } from '../site/SiteContext'
 
 const navLinks = [
   { name: 'Home', path: '/' },
@@ -12,6 +13,7 @@ const navLinks = [
 ]
 
 export default function Navbar() {
+  const { business } = useSite()
   const [isOpen, setIsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
@@ -55,13 +57,13 @@ export default function Navbar() {
             {/* Logo without box/border */}
             <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group">
               <img
-                src="/logo.jpg"
+                src={business.logo}
                 alt="Kavach Logo"
                 className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg object-cover transition-transform duration-300 group-hover:scale-105"
               />
               <div>
-                <h1 className="text-base sm:text-lg font-bold gradient-text leading-tight tracking-wide">KAVACH</h1>
-                <p className="text-[9px] sm:text-[10px] text-kavach-gray font-medium tracking-widest uppercase">Safety Grills & Nets</p>
+                <h1 className="text-base sm:text-lg font-bold gradient-text leading-tight tracking-wide">{business.name}</h1>
+                <p className="text-[9px] sm:text-[10px] text-kavach-gray font-medium tracking-widest uppercase">{business.tagline}</p>
               </div>
             </Link>
 
@@ -91,7 +93,7 @@ export default function Navbar() {
 
             <div className="hidden md:flex items-center gap-3">
               <a
-                href="tel:+917219700401"
+                href={telHref(business.phone)}
                 className="btn-primary text-sm !py-2 !px-5 rounded-full inline-flex items-center gap-2"
               >
                 <PhoneCall size={16} weight="bold" />
@@ -138,13 +140,13 @@ export default function Navbar() {
                 <div className="flex items-center justify-between pb-6 border-b border-kavach-border/80">
                   <div className="flex items-center gap-2.5">
                     <img
-                      src="/logo.jpg"
+                      src={business.logo}
                       alt="Kavach Logo"
                       className="h-8 w-8 rounded-lg object-cover"
                     />
                     <div>
-                      <p className="text-sm font-bold gradient-text leading-tight">KAVACH</p>
-                      <p className="text-[9px] text-kavach-gray tracking-wider uppercase font-medium">Safety Grills & Nets</p>
+                      <p className="text-sm font-bold gradient-text leading-tight">{business.name}</p>
+                      <p className="text-[9px] text-kavach-gray tracking-wider uppercase font-medium">{business.tagline}</p>
                     </div>
                   </div>
 
@@ -187,15 +189,15 @@ export default function Navbar() {
               {/* Drawer Bottom Actions */}
               <div className="pt-6 border-t border-kavach-border/80 space-y-3">
                 <a
-                  href="tel:+917219700401"
+                  href={telHref(business.phone)}
                   className="btn-primary text-xs sm:text-sm w-full text-center rounded-xl flex items-center justify-center gap-2 py-3 shadow-lg font-bold"
                 >
                   <PhoneCall size={16} weight="bold" />
-                  <span>Call +91 7219700401</span>
+                  <span>Call +91 {business.phone}</span>
                 </a>
 
                 <a
-                  href="https://wa.me/917219700401"
+                  href={whatsappHref(business.whatsapp)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full rounded-xl grey-card border border-kavach-border hover:border-emerald-500/50 text-white flex items-center justify-center gap-2 py-2.5 text-xs font-semibold transition-all"

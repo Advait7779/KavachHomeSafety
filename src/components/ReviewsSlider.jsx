@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Star, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { useSite } from '../site/SiteContext'
 
-const reviews = [
+const defaultReviews = [
   {
     id: 1,
     name: 'Sachin Jagtap',
@@ -70,6 +71,8 @@ const reviews = [
 ]
 
 export default function ReviewsSlider() {
+  const site = useSite()
+  const reviews = site.reviews || defaultReviews
   const [currentIndex, setCurrentIndex] = useState(0)
   const [cardsPerPage, setCardsPerPage] = useState(3)
 
@@ -88,6 +91,10 @@ export default function ReviewsSlider() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  useEffect(() => {
+    setCurrentIndex((prev) => Math.min(prev, Math.max(0, reviews.length - cardsPerPage)))
+  }, [reviews.length, cardsPerPage])
 
   const maxIndex = Math.max(0, reviews.length - cardsPerPage)
 

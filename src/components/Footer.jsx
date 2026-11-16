@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom'
 import { Phone, MapPin, InstagramLogo, FacebookLogo } from '@phosphor-icons/react'
 import WhatsAppIcon from './WhatsAppIcon'
+import { useSite, telHref, whatsappHref } from '../site/SiteContext'
 
 export default function Footer() {
+  const site = useSite()
+  const { business } = site
   const currentYear = new Date().getFullYear()
 
   return (
@@ -12,10 +15,10 @@ export default function Footer() {
           {/* Brand with clean logo (no border/box) */}
           <div className="lg:col-span-1">
             <div className="flex items-center gap-3 mb-4">
-              <img src="/logo.jpg" alt="Kavach" className="h-11 w-11 rounded-lg object-cover" />
+              <img src={business.logo} alt={business.name} className="h-11 w-11 rounded-lg object-cover" />
               <div>
-                <h3 className="text-lg font-bold gradient-text">KAVACH</h3>
-                <p className="text-[10px] text-kavach-gray tracking-widest uppercase font-medium">Safety Grills & Nets</p>
+                <h3 className="text-lg font-bold gradient-text">{business.name}</h3>
+                <p className="text-[10px] text-kavach-gray tracking-widest uppercase font-medium">{business.tagline}</p>
               </div>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed">
@@ -49,10 +52,10 @@ export default function Footer() {
           <div>
             <h4 className="text-xs font-semibold text-white mb-4 tracking-wider uppercase text-kavach-orange">Solutions</h4>
             <ul className="space-y-3">
-              {['Invisible Safety Grills', 'Mosquito Net Systems', 'High-Rise Balcony Safety', 'Staircase Invisible Railings', 'Window Safety Wire'].map(
+              {site.services.map(
                 (service) => (
-                  <li key={service}>
-                    <span className="text-sm text-slate-400">{service}</span>
+                  <li key={service.id}>
+                    <span className="text-sm text-slate-400">{service.title}</span>
                   </li>
                 )
               )}
@@ -65,25 +68,25 @@ export default function Footer() {
             <ul className="space-y-3.5">
               <li>
                 <a
-                  href="tel:+917219700401"
+                  href={telHref(business.phone)}
                   className="flex items-center gap-2.5 text-sm text-slate-300 hover:text-kavach-orange transition-colors group"
                 >
                   <Phone size={16} weight="bold" className="text-kavach-orange flex-shrink-0" />
-                  <span>+91 7219700401</span>
+                  <span>+91 {business.phone}</span>
                 </a>
               </li>
               <li>
                 <a
-                  href="tel:+917507040406"
+                  href={telHref(business.secondaryPhone)}
                   className="flex items-center gap-2.5 text-sm text-slate-300 hover:text-kavach-orange transition-colors group"
                 >
                   <Phone size={16} weight="bold" className="text-kavach-orange flex-shrink-0" />
-                  <span>+91 7507040406</span>
+                  <span>+91 {business.secondaryPhone}</span>
                 </a>
               </li>
               <li>
                 <a
-                  href="https://wa.me/917219700401"
+                  href={whatsappHref(business.whatsapp)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2.5 text-sm text-slate-300 hover:text-emerald-400 transition-colors group"
@@ -94,7 +97,7 @@ export default function Footer() {
               </li>
               <li className="flex items-start gap-2.5 text-xs text-slate-400 pt-1 leading-relaxed">
                 <MapPin size={16} weight="bold" className="text-kavach-orange flex-shrink-0 mt-0.5" />
-                <span>Padmavati building, kale colony lane no 2, aalandi dighi road, charholi pune</span>
+                <span>{business.address}</span>
               </li>
             </ul>
           </div>
@@ -103,7 +106,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-kavach-border flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-slate-400">
-            © {currentYear} Kavach Invisible Safety Grill & Mosquito Net. All rights reserved.
+            © {currentYear} {business.name}. All rights reserved.
           </p>
           <div className="flex items-center gap-3">
             <a

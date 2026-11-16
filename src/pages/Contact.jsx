@@ -4,16 +4,11 @@ import { MapPin, PaperPlaneTilt, CheckCircle, PhoneCall, CaretDown, Check } from
 import PageTransition from '../components/PageTransition'
 import AnimatedSection from '../components/AnimatedSection'
 import WhatsAppIcon from '../components/WhatsAppIcon'
-
-const serviceOptions = [
-  'Invisible Safety Grills (Balcony/Window)',
-  'Mosquito Net Systems (Fiberglass/SS)',
-  'Balcony Child Safety Combo',
-  'Staircase & Duplex Wire Railings',
-  'Full Home Combo (Grills + Nets)',
-]
+import { useSite, telHref, whatsappHref } from '../site/SiteContext'
 
 export default function Contact() {
+  const { business, contact } = useSite()
+  const serviceOptions = contact.enquiryOptions
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -23,6 +18,10 @@ export default function Contact() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [dropdownError, setDropdownError] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [reference, setReference] = useState('')
+  const submissionKey = useRef(crypto.randomUUID())
   const dropdownRef = useRef(null)
 
   useEffect(() => {
@@ -39,7 +38,7 @@ export default function Contact() {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
     if (!formData.service) {
@@ -49,17 +48,23 @@ export default function Contact() {
     }
     setDropdownError(false)
 
-    // Build WhatsApp message
-    const text = `*New Kavach Website Inquiry*\nName: ${formData.name}\nPhone: ${formData.phone}\nService Required: ${formData.service}\nDetails: ${formData.message}`
-    const encoded = encodeURIComponent(text)
-    const waUrl = `https://wa.me/917219700401?text=${encoded}`
-    const newTab = window.open(waUrl, '_blank')
-    if (!newTab || newTab.closed || typeof newTab.closed === 'undefined') {
-      window.location.href = waUrl
+    setSubmitError('')
+    setSubmitting(true)
+    try {
+      const response = await fetch('/api/public/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, submissionKey: submissionKey.current, website: e.currentTarget.elements.website.value }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Could not save your enquiry')
+      setReference(data.reference)
+      setSubmitted(true)
+    } catch (error) {
+      setSubmitError(error.message || 'Could not save your enquiry. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
-
-    setSubmitted(true)
-    setTimeout(() => setSubmitted(false), 4500)
   }
 
   return (
@@ -83,7 +88,7 @@ export default function Contact() {
             transition={{ delay: 0.25 }}
             className="text-3xl xs:text-4xl sm:text-6xl font-extrabold text-white mt-2 mb-4 tracking-tight break-words"
           >
-            Request a Free <span className="gradient-text">Site Survey</span>
+              <span className="gradient-text">{contact.heading}</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -91,7 +96,7 @@ export default function Contact() {
             transition={{ delay: 0.35 }}
             className="text-slate-300 max-w-lg mx-auto text-sm sm:text-base leading-relaxed"
           >
-            Have our certified technician visit your balcony or window in Pune with physical cable and mesh samples. 100% free with zero visit charges.
+            {contact.intro}
           </motion.p>
         </div>
       </section>
@@ -108,7 +113,7 @@ export default function Contact() {
               </span>
               <h2 className="text-xl sm:text-2xl font-extrabold text-white mb-1.5">Send Project Details</h2>
               <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-                Submit this form to instantly initiate a conversation with our technical team on WhatsApp.
+                {contact.formIntro}
               </p>
 
               {submitted ? (
@@ -118,13 +123,15 @@ export default function Contact() {
                   className="flex flex-col items-center justify-center py-12 text-center grey-inset rounded-2xl border border-kavach-border"
                 >
                   <CheckCircle size={48} weight="fill" className="text-emerald-400 mb-3" />
-                  <h3 className="text-base font-bold text-white mb-1">WhatsApp Chat Opened!</h3>
+                  <h3 className="text-base font-bold text-white mb-1">Enquiry received</h3>
                   <p className="text-xs text-slate-300 max-w-xs">
-                    If WhatsApp didn't open automatically, you can also call us directly at +91 7219700401.
+                    Reference {reference}. Our team will get back to you soon.
                   </p>
+                  <a href={whatsappHref(business.whatsapp, `New Kavach website enquiry ${reference}\nName: ${formData.name}\nPhone: ${formData.phone}\nService: ${formData.service}\nDetails: ${formData.message}`)} target="_blank" rel="noopener noreferrer" className="btn-primary text-xs mt-4 rounded-xl">Continue on WhatsApp</a>
                 </motion.div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3.5">
+                  <input name="website" tabIndex={-1} autoComplete="off" className="absolute opacity-0 pointer-events-none" aria-hidden="true" />
                   <div>
                     <label className="text-xs font-semibold text-slate-300 mb-1 block">Your Full Name</label>
                     <input
@@ -235,11 +242,13 @@ export default function Contact() {
 
                   <button
                     type="submit"
+                    disabled={submitting}
                     className="btn-primary w-full rounded-xl inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg !py-3 mt-1"
                   >
                     <PaperPlaneTilt size={16} weight="bold" />
-                    <span>Send Inquiry on WhatsApp</span>
+                    <span>{submitting ? 'Sending enquiry...' : 'Send Enquiry'}</span>
                   </button>
+                  {submitError && <p role="alert" className="text-xs text-rose-400">{submitError}</p>}
                 </form>
               )}
             </div>
@@ -250,18 +259,18 @@ export default function Contact() {
             {/* Quick Action Buttons */}
             <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
               <a
-                href="tel:+917219700401"
+                href={telHref(business.phone)}
                 className="grey-card rounded-2xl p-3 sm:p-4 text-center border border-kavach-border hover:border-kavach-orange/50 transition-all group"
               >
                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl grey-inset flex items-center justify-center mx-auto mb-2 text-kavach-orange group-hover:scale-110 transition-transform">
                   <PhoneCall size={18} weight="bold" />
                 </div>
-                <p className="text-xs font-bold text-white truncate">Call +91 7219700401</p>
+                <p className="text-xs font-bold text-white truncate">Call +91 {business.phone}</p>
                 <p className="text-[10px] text-slate-400 mt-0.5">Immediate reply</p>
               </a>
 
               <a
-                href="https://wa.me/917219700401"
+                href={whatsappHref(business.whatsapp)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="grey-card rounded-2xl p-3 sm:p-4 text-center border border-kavach-border hover:border-emerald-500/50 transition-all group"
@@ -280,7 +289,7 @@ export default function Contact() {
               <div>
                 <p className="text-xs font-bold text-white">Workshop & Office Location</p>
                 <p className="text-xs text-slate-300 leading-relaxed mt-0.5">
-                  Padmavati building, kale colony lane no 2, aalandi dighi road, charholi pune
+                  {business.address}
                 </p>
               </div>
             </div>
@@ -288,7 +297,7 @@ export default function Contact() {
             {/* Map Frame */}
             <div className="grey-card rounded-2xl p-2 border border-kavach-border overflow-hidden h-[260px] shadow-lg">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3780.5!2d73.87!3d18.67!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTjCsDQwJzEyLjAiTiA3M8KwNTInMTIuMCJF!5e0!3m2!1sen!2sin!4v1"
+                src={contact.mapUrl}
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
