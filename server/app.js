@@ -247,7 +247,7 @@ const billInput = z.object({
   estimate: estimateInput.optional(),
   discount: z.coerce.number().min(0).max(100000000).default(0),
   items: z.array(z.object({ description: z.string().trim().min(1).max(500), itemCode: estimateText(80), quantity: z.coerce.number().positive().max(100000), unit: z.string().trim().min(1).max(30), unitPrice: z.coerce.number().min(0).max(100000000) })).min(1).max(50),
-})
+}).transform((data) => ({ ...data, dueDate: data.estimate?.type === 'estimate' ? null : data.dueDate }))
 
 async function getBill(id, db = pool) {
   const { rows } = await db.query('SELECT * FROM bills WHERE id = $1', [id])

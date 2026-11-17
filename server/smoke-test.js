@@ -116,6 +116,13 @@ try {
   const billId = result.data.id
   assert.equal(Number(result.data.total), 900)
   assert.equal(Number(result.data.tax_total), 0)
+  assert.equal(result.data.due_date?.slice(0, 10), '2026-11-30')
+  result = await request('/api/admin/bills', { method: 'POST', body: JSON.stringify({ ...billPayload, estimate: { type: 'estimate' } }) })
+  assert.equal(result.response.status, 201)
+  assert.equal(result.data.due_date, null)
+  result = await request(`/api/admin/bills/${result.data.id}/pdf`)
+  assert.equal(result.response.headers.get('content-type'), 'application/pdf')
+  assert.ok((await result.response.arrayBuffer()).byteLength > 1000)
   result = await request(`/api/admin/bills/${billId}/issue`, { method: 'POST' })
   assert.equal(result.response.status, 200)
   assert.match(result.data.bill_number, /^KH-\d{4}-\d{5}$/)

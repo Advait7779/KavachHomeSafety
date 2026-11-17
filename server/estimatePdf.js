@@ -61,9 +61,7 @@ export async function streamEstimatePdf(res, bill) {
   doc.fillColor(dark).font('Helvetica').fontSize(9)
     .text(`Estimate No.: ${estimateNumber}`, 337, contactY + 18, { width: 214, align: 'right' })
     .text(`Date: ${displayDate(bill.issue_date) || 'Draft'}`, 337, contactY + 34, { width: 214, align: 'right' })
-  if (bill.due_date) doc.text(`Valid until: ${displayDate(bill.due_date)}`, 337, contactY + 50, { width: 214, align: 'right' })
-
-  let y = Math.max(customerY, contactY + (bill.due_date ? 76 : 62)) + 12
+  let y = Math.max(customerY, contactY + 62) + 12
   const ensureSpace = (height) => { if (y + height > bottom) throw onePageError() }
   const tableHeader = () => {
     doc.rect(left, y, right - left, 28).fill(dark)
