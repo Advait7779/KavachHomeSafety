@@ -95,7 +95,7 @@ app.get('/api/admin/dashboard', asyncRoute(async (_req, res) => {
     pool.query('SELECT id, name, phone, service, status, created_at FROM leads ORDER BY created_at DESC LIMIT 6'),
     pool.query(`SELECT count(*) FILTER (WHERE status = 'issued' AND coalesce(estimate->>'type', 'invoice') = 'invoice')::int AS outstanding,
       count(*) FILTER (WHERE status = 'paid' AND coalesce(estimate->>'type', 'invoice') = 'invoice')::int AS paid,
-      coalesce(sum(total) FILTER (WHERE status = 'issued' AND coalesce(estimate->>'type', 'invoice') = 'invoice'), 0) AS outstanding_total FROM bills`),
+      coalesce(sum(total) FILTER (WHERE status = 'issued' AND coalesce(estimate->>'type', 'invoice') = 'invoice'), 0) AS outstanding_total FROM bills WHERE deleted_at IS NULL`),
   ])
   res.json({ leads: leads.rows[0], recent: recent.rows, bills: bills.rows[0] })
 }))
@@ -250,7 +250,7 @@ const billInput = z.object({
 }).transform((data) => ({ ...data, dueDate: data.estimate?.type === 'estimate' ? null : data.dueDate }))
 
 async function getBill(id, db = pool) {
-  const { rows } = await db.query('SELECT * FROM bills WHERE id = $1', [id])
+  const { rows } = await db.query('SELECT * FROM bills WHERE id = $1 AND deleted_at IS NULL', [id])
   if (!rows[0]) return null
   const items = await db.query('SELECT * FROM bill_items WHERE bill_id = $1 ORDER BY sort_order', [id])
   return { ...rows[0], items: items.rows }
@@ -264,7 +264,7 @@ async function writeItems(db, billId, items) {
 }
 
 app.get('/api/admin/bills', asyncRoute(async (_req, res) => {
-  const { rows } = await pool.query('SELECT id, bill_number, status, customer, estimate, issue_date, due_date, total, created_at FROM bills ORDER BY created_at DESC LIMIT 100')
+  const { rows } = await pool.query('SELECT id, bill_number, status, customer, estimate, issue_date, due_date, total, created_at FROM bills WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 100')
   res.json(rows)
 }))
 app.post('/api/admin/bills/preview', asyncRoute(async (req, res) => {
@@ -323,7 +323,7 @@ app.patch('/api/admin/bills/:id', asyncRoute(async (req, res) => {
   const totals = calculateBill(data.items, data.discount)
   if (totals.total < 0) return res.status(400).json({ error: 'Discount exceeds the bill amount' })
   const bill = await transaction(async (db) => {
-    const existing = await db.query('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [req.params.id])
+    const existing = await db.query('SELECT status FROM bills WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.params.id])
     if (!existing.rows[0]) return null
     if (existing.rows[0].status !== 'draft') return 'locked'
     await db.query(`UPDATE bills SET lead_id=$1, customer=$2, estimate=$3, issue_date=$4, due_date=$5, notes=$6, subtotal=$7, discount=$8, tax_total=$9, total=$10, updated_at=now() WHERE id=$11`,
@@ -337,7 +337,7 @@ app.patch('/api/admin/bills/:id', asyncRoute(async (req, res) => {
 }))
 app.post('/api/admin/bills/:id/issue', asyncRoute(async (req, res) => {
   const result = await transaction(async (db) => {
-    const existing = await db.query('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [req.params.id])
+    const existing = await db.query('SELECT status FROM bills WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.params.id])
     if (!existing.rows[0]) return 'missing'
     if (existing.rows[0].status !== 'draft') return 'locked'
     const sequence = await db.query("SELECT nextval('bill_number_seq') AS value")
@@ -353,12 +353,23 @@ app.post('/api/admin/bills/:id/issue', asyncRoute(async (req, res) => {
 }))
 for (const action of ['paid', 'void']) {
   app.post(`/api/admin/bills/:id/${action}`, asyncRoute(async (req, res) => {
-    const { rows } = await pool.query("UPDATE bills SET status=$1, updated_at=now() WHERE id=$2 AND status='issued' RETURNING *", [action, req.params.id])
+    const { rows } = await pool.query("UPDATE bills SET status=$1, updated_at=now() WHERE id=$2 AND status='issued' AND deleted_at IS NULL RETURNING *", [action, req.params.id])
     if (!rows[0]) return res.status(409).json({ error: 'Only issued bills can change status' })
     await pool.query('INSERT INTO bill_events (bill_id, admin_user_id, action) VALUES ($1,$2,$3)', [req.params.id, req.admin.id, action])
     res.json(rows[0])
   }))
 }
+app.delete('/api/admin/bills/:id', asyncRoute(async (req, res) => {
+  const deleted = await transaction(async (db) => {
+    const { rows } = await db.query('UPDATE bills SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id', [req.params.id])
+    if (!rows[0]) return false
+    await db.query('INSERT INTO bill_events (bill_id, admin_user_id, action) VALUES ($1, $2, $3)', [req.params.id, req.admin.id, 'deleted'])
+    await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, 'document_deleted', String(req.params.id)])
+    return true
+  })
+  if (!deleted) return res.status(404).json({ error: 'Document not found' })
+  res.status(204).end()
+}))
 app.get('/api/admin/bills/:id/pdf', asyncRoute(async (req, res) => {
   const bill = await getBill(req.params.id)
   if (!bill) return res.status(404).json({ error: 'Bill not found' })

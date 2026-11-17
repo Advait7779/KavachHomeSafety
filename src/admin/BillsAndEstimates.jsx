@@ -230,15 +230,69 @@ function DocumentEditor({ id, leadId, newType }) {
 
 export default function BillsAndEstimates() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [params] = useSearchParams()
   const newType = params.get('new') === 'invoice' ? 'invoice' : 'estimate'
   const leadId = params.get('lead')
   const [documents, setDocuments] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
   const [error, setError] = useState('')
   useEffect(() => {
     let active = true
     api('/api/admin/bills').then((data) => { if (active) setDocuments(data) }).catch((err) => { if (active) setError(err.message) })
     return () => { active = false }
   }, [id, leadId, newType])
-  return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-kavach-orange text-xs font-semibold uppercase tracking-widest">Documents</p><p className="text-sm text-slate-400 mt-1">Create estimates and manage customer bills.</p></div><div className="flex gap-2"><Link to="/admin/bills?new=estimate" className="btn-primary rounded-xl text-xs inline-flex items-center gap-2"><Plus size={16} /> New estimate</Link><Link to="/admin/bills?new=invoice" className="admin-secondary"><Plus size={16} /> New bill</Link></div></div>{error && <p className="text-rose-400 text-sm">{error}</p>}<div className="admin-card overflow-hidden"><div className="hidden sm:grid grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] gap-3 px-5 py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border"><span>Document</span><span>Customer</span><span>Type</span><span>Status</span><span className="text-right">Total</span></div>{documents?.length ? documents.map((document) => <Link to={`/admin/bills/${document.id}`} key={document.id} className="grid sm:grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] gap-2 sm:gap-3 px-5 py-4 border-b border-kavach-border/60 hover:bg-white/5 text-sm"><strong>{document.estimate?.type === 'estimate' ? (document.estimate.number || `Estimate #${document.id}`) : (document.bill_number || `Draft #${document.id}`)}</strong><span className="text-slate-300">{document.customer?.name}</span><span className="text-slate-400 capitalize">{document.estimate?.type === 'estimate' ? 'Estimate' : 'Bill'}</span><span className="text-kavach-orange capitalize">{statusLabel(document.status)}</span><strong className="sm:text-right">{money(document.total)}</strong></Link>) : <p className="p-8 text-sm text-slate-400">{documents ? 'No documents yet. Create an estimate to get started.' : 'Loading documents...'}</p>}</div>{(id || leadId || params.has('new')) && <DocumentEditor id={id} leadId={leadId} newType={newType} />}</div>
+  async function deleteDocument(document) {
+    const kind = document.estimate?.type === 'estimate' ? 'estimate' : 'bill'
+    const number = document.estimate?.type === 'estimate' ? (document.estimate.number || `#${document.id}`) : (document.bill_number || `#${document.id}`)
+    if (!window.confirm(`Delete ${kind} ${number}? It will disappear from this list and cannot be opened here afterward.`)) return
+    setDeletingId(document.id)
+    setError('')
+    try {
+      await api(`/api/admin/bills/${document.id}`, { method: 'DELETE' })
+      setDocuments((current) => current?.filter((item) => item.id !== document.id) ?? current)
+      if (String(id) === String(document.id)) navigate('/admin/bills')
+    } catch (err) { setError(err.message) } finally { setDeletingId(null) }
+  }
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-kavach-orange text-xs font-semibold uppercase tracking-widest">Documents</p>
+          <p className="text-sm text-slate-400 mt-1">Create estimates and manage customer bills.</p>
+        </div>
+        <div className="flex gap-2">
+          <Link to="/admin/bills?new=estimate" className="btn-primary rounded-xl text-xs inline-flex items-center gap-2"><Plus size={16} /> New estimate</Link>
+          <Link to="/admin/bills?new=invoice" className="admin-secondary"><Plus size={16} /> New bill</Link>
+        </div>
+      </div>
+      {error && <p className="text-rose-400 text-sm" role="alert">{error}</p>}
+      <div className="admin-card overflow-hidden">
+        <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_4rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
+          <div className="grid grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] gap-3 px-5">
+            <span>Document</span><span>Customer</span><span>Type</span><span>Status</span><span className="text-right">Total</span>
+          </div>
+          <span className="text-center">Action</span>
+        </div>
+        {documents?.length ? documents.map((document) => {
+          const isEstimate = document.estimate?.type === 'estimate'
+          const kind = isEstimate ? 'estimate' : 'bill'
+          const number = isEstimate ? (document.estimate.number || `Estimate #${document.id}`) : (document.bill_number || `Draft #${document.id}`)
+          return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_4rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
+            <Link to={`/admin/bills/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm sm:grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] sm:gap-3">
+              <strong className="truncate">{number}</strong>
+              <span className="truncate text-slate-300">{document.customer?.name}</span>
+              <span className="text-slate-400 capitalize">{isEstimate ? 'Estimate' : 'Bill'}</span>
+              <span className="text-kavach-orange capitalize">{statusLabel(document.status)}</span>
+              <strong className="sm:text-right">{money(document.total)}</strong>
+            </Link>
+            <button type="button" onClick={() => deleteDocument(document)} disabled={deletingId === document.id} aria-label={`Delete ${kind} ${number}`} title={`Delete ${kind}`} className="mx-auto rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50">
+              <Trash size={18} />
+            </button>
+          </div>
+        }) : <p className="p-8 text-sm text-slate-400">{documents ? 'No documents yet. Create an estimate to get started.' : 'Loading documents...'}</p>}
+      </div>
+      {(id || leadId || params.has('new')) && <DocumentEditor id={id} leadId={leadId} newType={newType} />}
+    </div>
+  )
 }
