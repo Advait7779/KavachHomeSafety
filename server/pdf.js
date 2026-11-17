@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { pdfFonts, registerPdfFonts } from './pdfFonts.js'
 
 const money = (value) => `Rs. ${Number(value).toFixed(2)}`
 const assetDir = fileURLToPath(new URL('../dist/', import.meta.url))
@@ -26,6 +27,7 @@ export async function localPdfImage(doc, source, fallbackLogo = false) {
 
 export async function streamBillPdf(res, bill) {
   const doc = new PDFDocument({ size: [595, 780], margin: 48, bufferPages: true })
+  registerPdfFonts(doc)
   const logo = await localPdfImage(doc, bill.business.logo, true)
   const dark = '#1a1e27'
   const orange = '#E8871E'
@@ -39,14 +41,14 @@ export async function streamBillPdf(res, bill) {
   const fullName = /invisible safety grill/i.test(businessName)
     ? businessName
     : `${businessName} Invisible Safety Grill & Mosquito Net`
-  doc.fillColor(orange).font('Helvetica-Bold').fontSize(17).text(fullName, 136, 29, { width: 285 })
-  doc.fillColor('#ffffff').font('Helvetica').fontSize(9).text('BILL / INVOICE', 400, 45, { align: 'right' })
+  doc.fillColor(orange).font(pdfFonts.bold).fontSize(17).text(fullName, 136, 29, { width: 285 })
+  doc.fillColor('#ffffff').font(pdfFonts.regular).fontSize(9).text('BILL / INVOICE', 400, 45, { align: 'right' })
 
-  doc.fillColor(orange).font('Helvetica-Bold').fontSize(9).text('BILL TO', 48, 130)
+  doc.fillColor(orange).font(pdfFonts.bold).fontSize(9).text('BILL TO', 48, 130)
   let customerY = 148
-  doc.fillColor(dark).font('Helvetica-Bold').fontSize(12).text(bill.customer.name || '', 48, customerY, { width: 499 })
+  doc.fillColor(dark).font(pdfFonts.bold).fontSize(12).text(bill.customer.name || '', 48, customerY, { width: 499 })
   customerY = doc.y + 6
-  doc.font('Helvetica').fontSize(9)
+  doc.font(pdfFonts.regular).fontSize(9)
   if (bill.customer.phone) {
     doc.text(bill.customer.phone, 48, customerY, { width: 499 })
     customerY = doc.y + 5
@@ -58,7 +60,7 @@ export async function streamBillPdf(res, bill) {
 
   const tableHeader = (at) => {
     doc.rect(48, at, 499, 25).fill(dark)
-    doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9)
+    doc.fillColor('#ffffff').font(pdfFonts.bold).fontSize(9)
       .text('Description', 56, at + 8).text('Qty', 326, at + 8).text('Rate', 380, at + 8).text('Amount', 467, at + 8)
     return at + 34
   }
@@ -67,13 +69,13 @@ export async function streamBillPdf(res, bill) {
   y = tableHeader(y)
   for (const item of bill.items) {
     const amount = Number(item.quantity) * Number(item.unit_price)
-    doc.font('Helvetica').fontSize(9)
+    doc.font(pdfFonts.regular).fontSize(9)
     const rowHeight = Math.max(26,
       doc.heightOfString(item.description, { width: 252 }) + 10,
       doc.heightOfString(`${item.quantity} ${item.unit}`, { width: 54 }) + 10)
     if (rowHeight > pageBottom - 100) throw Object.assign(new Error('Bill item is too long for a PDF page'), { status: 400 })
     if (y + rowHeight > pageBottom) { doc.addPage(); y = tableHeader(50) }
-    doc.fillColor(dark).font('Helvetica').fontSize(9)
+    doc.fillColor(dark).font(pdfFonts.regular).fontSize(9)
       .text(item.description, 56, y, { width: 252 })
       .text(`${item.quantity} ${item.unit}`, 322, y, { width: 54 })
       .text(money(item.unit_price), 378, y, { width: 76 })
@@ -85,7 +87,7 @@ export async function streamBillPdf(res, bill) {
   const totalsHeight = 20 + (Number(bill.discount) ? 20 : 0) + (Number(bill.tax_total) ? 20 : 0) + 27
   if (y + totalsHeight > pageBottom) { doc.addPage(); y = 50 }
   const totalRow = (label, value, bold = false) => {
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 12 : 9)
+    doc.font(bold ? pdfFonts.bold : pdfFonts.regular).fontSize(bold ? 12 : 9)
       .text(label, 335, y).text(money(value), 445, y, { width: 102, align: 'right' })
     y += bold ? 27 : 20
   }
@@ -96,7 +98,7 @@ export async function streamBillPdf(res, bill) {
   let footerY = Math.max(y + 24, doc.bufferedPageRange().count === 1 ? 550 : y + 24)
   if (footerY > pageBottom) { doc.addPage(); footerY = 50 }
   const terms = bill.notes || bill.business.billTerms || ''
-  doc.font('Helvetica').fontSize(9).fillColor('#555555')
+  doc.font(pdfFonts.regular).fontSize(9).fillColor('#555555')
   if (terms) doc.text(terms, 48, footerY, { width: 490 })
   let paymentY = terms ? doc.y + 12 : footerY
   if (paymentY > pageBottom) { doc.addPage(); paymentY = 50 }
