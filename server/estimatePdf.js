@@ -69,7 +69,7 @@ export async function streamEstimatePdf(res, bill) {
     doc.rect(left, y, right - left, 28).fill(dark)
     doc.rect(left, y, right - left, 3).fill(orange)
     doc.fillColor('#ffffff').font(pdfFonts.bold).fontSize(8)
-      .text('#', 49, y + 10, { width: 18 })
+      .text('No.', 49, y + 10, { width: 18 })
       .text('Item name', 73, y + 10, { width: 180 })
       .text('Item code', 263, y + 10, { width: 62 })
       .text('Quantity', 330, y + 10, { width: 46, align: 'right' })
