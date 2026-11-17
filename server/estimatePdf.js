@@ -57,10 +57,8 @@ export async function streamEstimatePdf(res, bill) {
     doc.text(text, left, customerY, { width: 270 })
     customerY += doc.heightOfString(text, { width: 270 }) + 4
   }
-  doc.fillColor(orange).font('Helvetica-Bold').fontSize(9).text('ESTIMATE DETAILS', 359, contactY, { width: 192, align: 'right' })
-  doc.fillColor(dark).font('Helvetica').fontSize(9)
-    .text(`Estimate No.: ${estimateNumber}`, 337, contactY + 18, { width: 214, align: 'right' })
-    .text(`Date: ${displayDate(bill.issue_date) || 'Draft'}`, 337, contactY + 34, { width: 214, align: 'right' })
+  doc.fillColor(orange).font('Helvetica-Bold').fontSize(9)
+    .text(`Date: ${displayDate(bill.issue_date) || 'Draft'}`, 337, contactY, { width: 214, align: 'right' })
   let y = Math.max(customerY, contactY + 62) + 12
   const ensureSpace = (height) => { if (y + height > bottom) throw onePageError() }
   const tableHeader = () => {
