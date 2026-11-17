@@ -72,6 +72,7 @@ CREATE SEQUENCE IF NOT EXISTS bill_number_seq START 1;
 CREATE TABLE IF NOT EXISTS bills (
   id BIGSERIAL PRIMARY KEY,
   bill_number TEXT UNIQUE,
+  source_estimate_id BIGINT REFERENCES bills(id),
   lead_id BIGINT REFERENCES leads(id) ON DELETE SET NULL,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','issued','paid','void')),
   customer JSONB NOT NULL,
@@ -92,8 +93,10 @@ CREATE TABLE IF NOT EXISTS bills (
 CREATE INDEX IF NOT EXISTS bills_created_idx ON bills (created_at DESC);
 CREATE INDEX IF NOT EXISTS bills_status_idx ON bills (status);
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS estimate JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE bills ADD COLUMN IF NOT EXISTS source_estimate_id BIGINT REFERENCES bills(id);
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS draft_data JSONB;
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS bills_active_source_estimate_idx ON bills (source_estimate_id) WHERE source_estimate_id IS NOT NULL AND deleted_at IS NULL;
 CREATE TABLE IF NOT EXISTS bill_items (
   id BIGSERIAL PRIMARY KEY,
   bill_id BIGINT NOT NULL REFERENCES bills(id) ON DELETE CASCADE,

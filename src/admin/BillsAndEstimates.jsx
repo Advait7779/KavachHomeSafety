@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { CheckCircle, CloudArrowUp, Eye, FilePdf, Plus, Prohibit, Trash, X } from '@phosphor-icons/react'
+import { ArrowsClockwise, CheckCircle, CloudArrowUp, Eye, FilePdf, Plus, Prohibit, Receipt, Trash, X } from '@phosphor-icons/react'
 import { amountInWords, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
 import { useSite } from '../site/SiteContext'
 import { api, apiBlob } from './api'
@@ -253,6 +253,14 @@ function DocumentEditor({ id, leadId, newType }) {
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
 
+  async function convertToBill() {
+    setBusy(true); setError('')
+    try {
+      const converted = await api(`/api/admin/bills/${id}/convert`, { method: 'POST' })
+      navigate(`/admin/bills/${converted.id}`, { replace: true })
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-2 sm:p-5" role="presentation">
     <div className="absolute inset-0" onClick={() => navigate('/admin/bills')} aria-hidden="true" />
     <section className="document-editor relative flex h-[min(96vh,1020px)] w-full max-w-[1000px] min-h-0 flex-col overflow-hidden rounded-2xl border border-kavach-border bg-kavach-dark shadow-2xl" role="dialog" aria-modal="true" aria-label={title}>
@@ -273,7 +281,7 @@ function DocumentEditor({ id, leadId, newType }) {
           </form>
         </div>
         {tab === 'preview' && <div className="flex min-h-0 flex-1 flex-col bg-[#222731]"><div className="flex flex-wrap items-center justify-between gap-2 border-b border-kavach-border px-4 py-2 text-xs sm:px-6"><span className="text-slate-300">Preview of the current fields</span><div className="flex gap-3"><a className="font-semibold text-kavach-orange" href={previewUrl} target="_blank" rel="noopener noreferrer">Open PDF</a><a className="font-semibold text-kavach-orange" href={previewUrl} download={`${estimateMode ? 'estimate' : 'bill'}-preview.pdf`}>Download PDF</a></div></div><DocumentPreview form={form} totals={totals} business={business} /></div>}
-        {tab === 'customize' && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-kavach-border bg-kavach-dark px-4 py-3 sm:px-6"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">{!estimateMode && <span className="text-slate-400">Subtotal <strong className="ml-1 text-white">{money(totals.subtotal)}</strong></span>}<label className="flex items-center gap-2 text-slate-400">Discount <input aria-label="Discount in rupees" className="admin-input !w-24 !px-2 !py-1" type="number" min="0" step="any" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} disabled={locked} /></label><strong className="text-sm text-kavach-orange">Total {money(totals.total)}</strong></div><div className="flex flex-wrap items-center gap-2">{id && !bill?.draft_data && <a className="admin-secondary" href={`/api/admin/bills/${id}/pdf`} target="_blank" rel="noopener noreferrer"><FilePdf size={15} /> Saved PDF</a>}{bill?.status === 'draft' && <button type="button" onClick={() => action('issue')} disabled={busy || dirty || Boolean(bill?.draft_data)} title={bill?.draft_data ? 'Complete and save the draft before issuing' : dirty ? 'Save the draft before issuing' : ''} className="admin-secondary">Issue {estimateMode ? 'estimate' : 'bill'}</button>}{bill?.status === 'issued' && <><button type="button" onClick={() => action('paid')} disabled={busy} className="admin-secondary"><CheckCircle size={15} /> Mark paid</button><button type="button" onClick={() => { setError(''); setConfirmCancel(true) }} disabled={busy} className="admin-secondary text-rose-400"><Prohibit size={15} /> Cancel {estimateMode ? 'estimate' : 'bill'}</button></>}{!locked && <button type="submit" form="document-form" formNoValidate data-save-progress="true" disabled={busy} className="admin-secondary">Save for later</button>}{!locked && <button type="submit" form="document-form" disabled={busy} className="btn-primary rounded-lg text-xs">{busy ? 'Working...' : id ? 'Save draft' : `Create ${estimateMode ? 'estimate' : 'bill'} draft`}</button>}</div></footer>}
+        {tab === 'customize' && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-kavach-border bg-kavach-dark px-4 py-3 sm:px-6"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">{!estimateMode && <span className="text-slate-400">Subtotal <strong className="ml-1 text-white">{money(totals.subtotal)}</strong></span>}<label className="flex items-center gap-2 text-slate-400">Discount <input aria-label="Discount in rupees" className="admin-input !w-24 !px-2 !py-1" type="number" min="0" step="any" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} disabled={locked} /></label><strong className="text-sm text-kavach-orange">Total {money(totals.total)}</strong></div><div className="flex flex-wrap items-center gap-2">{id && !bill?.draft_data && <a className="admin-secondary" href={`/api/admin/bills/${id}/pdf`} target="_blank" rel="noopener noreferrer"><FilePdf size={15} /> Saved PDF</a>}{estimateMode && id && bill?.status !== 'void' && (bill?.converted_bill_id ? <Link to={`/admin/bills/${bill?.converted_bill_id}`} className="admin-secondary"><Receipt size={15} /> Open bill</Link> : <button type="button" onClick={convertToBill} disabled={busy || dirty || Boolean(bill?.draft_data)} title={bill?.draft_data ? 'Complete and save the estimate before converting' : dirty ? 'Save the estimate before converting' : ''} className="admin-secondary"><ArrowsClockwise size={15} /> Convert to bill</button>)}{bill?.status === 'draft' && <button type="button" onClick={() => action('issue')} disabled={busy || dirty || Boolean(bill?.draft_data)} title={bill?.draft_data ? 'Complete and save the draft before issuing' : dirty ? 'Save the draft before issuing' : ''} className="admin-secondary">Issue {estimateMode ? 'estimate' : 'bill'}</button>}{bill?.status === 'issued' && <><button type="button" onClick={() => action('paid')} disabled={busy} className="admin-secondary"><CheckCircle size={15} /> Mark paid</button><button type="button" onClick={() => { setError(''); setConfirmCancel(true) }} disabled={busy} className="admin-secondary text-rose-400"><Prohibit size={15} /> Cancel {estimateMode ? 'estimate' : 'bill'}</button></>}{!locked && <button type="submit" form="document-form" formNoValidate data-save-progress="true" disabled={busy} className="admin-secondary">Save for later</button>}{!locked && <button type="submit" form="document-form" disabled={busy} className="btn-primary rounded-lg text-xs">{busy ? 'Working...' : id ? 'Save draft' : `Create ${estimateMode ? 'estimate' : 'bill'} draft`}</button>}</div></footer>}
       </>}
     </section>
     {confirmCancel && <ConfirmDialog
@@ -298,6 +306,7 @@ export default function BillsAndEstimates() {
   const leadId = params.get('lead')
   const [documents, setDocuments] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [convertingId, setConvertingId] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [error, setError] = useState('')
@@ -319,6 +328,14 @@ export default function BillsAndEstimates() {
       if (String(id) === String(document.id)) navigate('/admin/bills')
     } catch (err) { setDeleteError(err.message) } finally { setDeletingId(null) }
   }
+  async function convertEstimate(document) {
+    setConvertingId(document.id)
+    setError('')
+    try {
+      const converted = await api(`/api/admin/bills/${document.id}/convert`, { method: 'POST' })
+      navigate(`/admin/bills/${converted.id}`)
+    } catch (err) { setError(err.message) } finally { setConvertingId(null) }
+  }
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -334,7 +351,7 @@ export default function BillsAndEstimates() {
       {error && <p className="text-rose-400 text-sm" role="alert">{error}</p>}
       {location.state?.draftSaved && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">Draft saved. Open it from this list whenever you are ready to continue.</p>}
       <div className="admin-card overflow-hidden">
-        <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_4rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
+        <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_6rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
           <div className="grid grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] gap-3 px-5">
             <span>Document</span><span>Customer</span><span>Type</span><span>Status</span><span className="text-right">Total</span>
           </div>
@@ -344,7 +361,7 @@ export default function BillsAndEstimates() {
           const isEstimate = document.estimate?.type === 'estimate'
           const kind = isEstimate ? 'estimate' : 'bill'
           const number = isEstimate ? (document.estimate.number || `Estimate #${document.id}`) : (document.bill_number || `Draft #${document.id}`)
-          return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_4rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
+          return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_6rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
             <Link to={`/admin/bills/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm sm:grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] sm:gap-3">
               <strong className="truncate">{number}</strong>
               <span className="truncate text-slate-300">{document.customer?.name || 'Customer not added'}</span>
@@ -352,9 +369,14 @@ export default function BillsAndEstimates() {
               <span className="text-kavach-orange capitalize">{statusLabel(document.status)}</span>
               <strong className="sm:text-right">{money(document.total)}</strong>
             </Link>
-            <button type="button" onClick={() => { setDeleteError(''); setPendingDelete(document) }} disabled={deletingId === document.id} aria-label={`Delete ${kind} ${number}`} title={`Delete ${kind}`} className="mx-auto rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50">
-              <Trash size={18} />
-            </button>
+            <div className="flex items-center justify-center gap-1">
+              {isEstimate && document.status !== 'void' && (document.converted_bill_id
+                ? <Link to={`/admin/bills/${document.converted_bill_id}`} aria-label={`Open bill converted from ${number}`} title="Open converted bill" className="rounded-lg p-2 text-kavach-orange hover:bg-kavach-orange/10"><Receipt size={18} /></Link>
+                : <button type="button" onClick={() => convertEstimate(document)} disabled={convertingId === document.id || document.has_unfinished_fields} aria-label={`Convert ${number} to bill`} title={document.has_unfinished_fields ? 'Complete and save the estimate first' : 'Convert to bill'} className="rounded-lg p-2 text-kavach-orange hover:bg-kavach-orange/10 disabled:opacity-50"><ArrowsClockwise size={18} /></button>)}
+              <button type="button" onClick={() => { setDeleteError(''); setPendingDelete(document) }} disabled={deletingId === document.id} aria-label={`Delete ${kind} ${number}`} title={`Delete ${kind}`} className="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50">
+                <Trash size={18} />
+              </button>
+            </div>
           </div>
         }) : <p className="p-8 text-sm text-slate-400">{documents ? 'No documents yet. Create an estimate to get started.' : 'Loading documents...'}</p>}
       </div>
@@ -367,7 +389,7 @@ export default function BillsAndEstimates() {
         onCancel={() => setPendingDelete(null)}
         onConfirm={deleteDocument}
       />}
-      {(id || leadId || params.has('new')) && <DocumentEditor id={id} leadId={leadId} newType={newType} />}
+      {(id || leadId || params.has('new')) && <DocumentEditor key={id || (leadId ? `lead-${leadId}` : `new-${newType}`)} id={id} leadId={leadId} newType={newType} />}
     </div>
   )
 }

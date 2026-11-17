@@ -279,7 +279,9 @@ function savedDocumentInput(body) {
 }
 
 async function getBill(id, db = pool) {
-  const { rows } = await db.query('SELECT * FROM bills WHERE id = $1 AND deleted_at IS NULL', [id])
+  const { rows } = await db.query(`SELECT b.*, converted.id AS converted_bill_id FROM bills b
+    LEFT JOIN bills converted ON converted.source_estimate_id = b.id AND converted.deleted_at IS NULL
+    WHERE b.id = $1 AND b.deleted_at IS NULL`, [id])
   if (!rows[0]) return null
   const items = await db.query('SELECT * FROM bill_items WHERE bill_id = $1 ORDER BY sort_order', [id])
   return { ...rows[0], items: items.rows }
@@ -293,7 +295,11 @@ async function writeItems(db, billId, items) {
 }
 
 app.get('/api/admin/bills', asyncRoute(async (_req, res) => {
-  const { rows } = await pool.query('SELECT id, bill_number, status, customer, estimate, issue_date, due_date, total, created_at FROM bills WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 100')
+  const { rows } = await pool.query(`SELECT b.id, b.bill_number, b.source_estimate_id, converted.id AS converted_bill_id,
+    (b.draft_data IS NOT NULL) AS has_unfinished_fields,
+    b.status, b.customer, b.estimate, b.issue_date, b.due_date, b.total, b.created_at
+    FROM bills b LEFT JOIN bills converted ON converted.source_estimate_id = b.id AND converted.deleted_at IS NULL
+    WHERE b.deleted_at IS NULL ORDER BY b.created_at DESC LIMIT 100`)
   res.json(rows)
 }))
 app.post('/api/admin/bills/preview', asyncRoute(async (req, res) => {
@@ -345,6 +351,33 @@ app.get('/api/admin/bills/:id', asyncRoute(async (req, res) => {
   const bill = await getBill(req.params.id)
   if (!bill) return res.status(404).json({ error: 'Bill not found' })
   res.json(bill)
+}))
+app.post('/api/admin/bills/:id/convert', asyncRoute(async (req, res) => {
+  const result = await transaction(async (db) => {
+    const { rows } = await db.query('SELECT * FROM bills WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.params.id])
+    const source = rows[0]
+    if (!source) return { error: 'Estimate not found', status: 404 }
+    if (source.estimate?.type !== 'estimate') return { error: 'Only estimates can be converted to bills', status: 409 }
+    if (source.status === 'void') return { error: 'Cancelled estimates cannot be converted', status: 409 }
+    if (source.draft_data) return { error: 'Complete and save the estimate before converting it', status: 409 }
+    const existing = await db.query('SELECT id FROM bills WHERE source_estimate_id = $1 AND deleted_at IS NULL', [source.id])
+    if (existing.rows[0]) return { bill: await getBill(existing.rows[0].id, db), created: false }
+    const site = await db.query('SELECT published FROM site_content WHERE id = 1')
+    const business = site.rows[0].published.business
+    const converted = await db.query(`INSERT INTO bills
+      (source_estimate_id, lead_id, customer, business, estimate, issue_date, notes, subtotal, discount, tax_total, total)
+      VALUES ($1, $2, $3, $4, $5, (now() AT TIME ZONE 'Asia/Kolkata')::date, '', $6, $7, 0, $8) RETURNING id`,
+      [source.id, source.lead_id, source.customer, business, { type: 'invoice' }, source.subtotal, source.discount, source.total])
+    const billId = converted.rows[0].id
+    await db.query(`INSERT INTO bill_items (bill_id, description, item_code, quantity, unit, unit_price, tax_rate, sort_order)
+      SELECT $1, description, item_code, quantity, unit, unit_price, 0, sort_order FROM bill_items WHERE bill_id = $2 ORDER BY sort_order`,
+      [billId, source.id])
+    await db.query('INSERT INTO bill_events (bill_id, admin_user_id, action) VALUES ($1, $2, $3)', [billId, req.admin.id, 'converted_from_estimate'])
+    await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, 'estimate_converted', String(source.id)])
+    return { bill: await getBill(billId, db), created: true }
+  })
+  if (result.error) return res.status(result.status).json({ error: result.error })
+  res.status(result.created ? 201 : 200).json(result.bill)
 }))
 app.patch('/api/admin/bills/:id', asyncRoute(async (req, res) => {
   const { data, items, totals, saveProgress } = savedDocumentInput(req.body)
