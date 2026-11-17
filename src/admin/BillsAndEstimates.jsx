@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CheckCircle, CloudArrowUp, Eye, FilePdf, Plus, Prohibit, Trash, X } from '@phosphor-icons/react'
 import { amountInWords, estimateDefaults, fullCompanyName, mergeEstimate } from '../../shared/estimate.js'
@@ -8,6 +8,28 @@ import { api, apiBlob } from './api'
 const blankItem = () => ({ description: '', itemCode: '', quantity: 1, unit: 'sq ft', unitPrice: 0 })
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const statusLabel = (status) => status === 'void' ? 'Cancelled' : status
+
+function ConfirmDialog({ title, message, confirmLabel, onCancel, onConfirm, busy = false, error = '', icon: Icon = Trash }) {
+  const dialogRef = useRef(null)
+  const titleId = useId()
+  const messageId = useId()
+  useEffect(() => {
+    const dialog = dialogRef.current
+    dialog.showModal()
+    return () => dialog.close()
+  }, [])
+  return <dialog ref={dialogRef} aria-labelledby={titleId} aria-describedby={messageId} onCancel={(event) => { event.preventDefault(); if (!busy) onCancel() }} className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-kavach-border bg-kavach-card p-0 font-sans text-white shadow-2xl backdrop:bg-black/75">
+    <div className="flex items-start gap-3 border-b border-kavach-border px-5 py-5 sm:px-6">
+      <span className="rounded-xl bg-kavach-orange/10 p-2 text-kavach-orange"><Icon size={21} /></span>
+      <div><h2 id={titleId} className="text-lg font-bold">{title}</h2><p id={messageId} className="mt-2 text-sm leading-6 text-slate-300">{message}</p></div>
+    </div>
+    {error && <p className="mx-5 mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300 sm:mx-6" role="alert">{error}</p>}
+    <div className="flex justify-end gap-2 px-5 py-4 sm:px-6">
+      <button type="button" onClick={onCancel} disabled={busy} autoFocus className="admin-secondary">Keep document</button>
+      <button type="button" onClick={onConfirm} disabled={busy} className="btn-primary inline-flex items-center gap-2 rounded-lg text-xs"><Icon size={16} />{busy ? 'Working...' : confirmLabel}</button>
+    </div>
+  </dialog>
+}
 
 function blankForm(business, type = 'estimate') {
   return {
@@ -124,6 +146,7 @@ function DocumentEditor({ id, leadId, newType }) {
   const [message, setMessage] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
   const [tab, setTab] = useState('customize')
+  const [confirmCancel, setConfirmCancel] = useState(false)
   const [compactItems, setCompactItems] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches)
 
   useEffect(() => {
@@ -148,10 +171,10 @@ function DocumentEditor({ id, leadId, newType }) {
   useEffect(() => {
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const onKeyDown = (event) => { if (event.key === 'Escape') navigate('/admin/bills') }
+    const onKeyDown = (event) => { if (event.key === 'Escape' && !confirmCancel) navigate('/admin/bills') }
     window.addEventListener('keydown', onKeyDown)
     return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKeyDown) }
-  }, [navigate])
+  }, [navigate, confirmCancel])
 
   const totals = useMemo(() => {
     const subtotal = form.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0)
@@ -193,12 +216,12 @@ function DocumentEditor({ id, leadId, newType }) {
   }
 
   async function action(name) {
-    if (name === 'void' && !window.confirm(`Cancel this ${estimateMode ? 'estimate' : 'bill'}? It will stay in your records as Cancelled. This cannot be undone.`)) return
     setBusy(true); setError(''); setMessage('')
     try {
       const result = await api(`/api/admin/bills/${id}/${name}`, { method: 'POST' })
       setBill(result)
       setMessage(name === 'issue' ? `Issued ${estimateMode ? result.estimate?.number : result.bill_number}` : name === 'void' ? 'Document cancelled.' : 'Marked paid.')
+      if (name === 'void') setConfirmCancel(false)
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
 
@@ -222,9 +245,19 @@ function DocumentEditor({ id, leadId, newType }) {
           </form>
         </div>
         {tab === 'preview' && <div className="flex min-h-0 flex-1 flex-col bg-[#222731]"><div className="flex flex-wrap items-center justify-between gap-2 border-b border-kavach-border px-4 py-2 text-xs sm:px-6"><span className="text-slate-300">Preview of the current fields</span><div className="flex gap-3"><a className="font-semibold text-kavach-orange" href={previewUrl} target="_blank" rel="noopener noreferrer">Open PDF</a><a className="font-semibold text-kavach-orange" href={previewUrl} download={`${estimateMode ? 'estimate' : 'bill'}-preview.pdf`}>Download PDF</a></div></div><DocumentPreview form={form} totals={totals} business={business} /></div>}
-        {tab === 'customize' && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-kavach-border bg-kavach-dark px-4 py-3 sm:px-6"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">{!estimateMode && <span className="text-slate-400">Subtotal <strong className="ml-1 text-white">{money(totals.subtotal)}</strong></span>}<label className="flex items-center gap-2 text-slate-400">Discount <input aria-label="Discount in rupees" className="admin-input !w-24 !px-2 !py-1" type="number" min="0" step="any" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} disabled={locked} /></label><strong className="text-sm text-kavach-orange">Total {money(totals.total)}</strong></div><div className="flex flex-wrap items-center gap-2">{id && <a className="admin-secondary" href={`/api/admin/bills/${id}/pdf`} target="_blank" rel="noopener noreferrer"><FilePdf size={15} /> Saved PDF</a>}{bill?.status === 'draft' && <button type="button" onClick={() => action('issue')} disabled={busy || dirty} title={dirty ? 'Save the draft before issuing' : ''} className="admin-secondary">Issue {estimateMode ? 'estimate' : 'bill'}</button>}{bill?.status === 'issued' && <><button type="button" onClick={() => action('paid')} disabled={busy} className="admin-secondary"><CheckCircle size={15} /> Mark paid</button><button type="button" onClick={() => action('void')} disabled={busy} className="admin-secondary text-rose-400"><Prohibit size={15} /> Cancel {estimateMode ? 'estimate' : 'bill'}</button></>}{!locked && <button type="submit" form="document-form" disabled={busy} className="btn-primary rounded-lg text-xs">{busy ? 'Working...' : id ? 'Save draft' : `Create ${estimateMode ? 'estimate' : 'bill'} draft`}</button>}</div></footer>}
+        {tab === 'customize' && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-kavach-border bg-kavach-dark px-4 py-3 sm:px-6"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">{!estimateMode && <span className="text-slate-400">Subtotal <strong className="ml-1 text-white">{money(totals.subtotal)}</strong></span>}<label className="flex items-center gap-2 text-slate-400">Discount <input aria-label="Discount in rupees" className="admin-input !w-24 !px-2 !py-1" type="number" min="0" step="any" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} disabled={locked} /></label><strong className="text-sm text-kavach-orange">Total {money(totals.total)}</strong></div><div className="flex flex-wrap items-center gap-2">{id && <a className="admin-secondary" href={`/api/admin/bills/${id}/pdf`} target="_blank" rel="noopener noreferrer"><FilePdf size={15} /> Saved PDF</a>}{bill?.status === 'draft' && <button type="button" onClick={() => action('issue')} disabled={busy || dirty} title={dirty ? 'Save the draft before issuing' : ''} className="admin-secondary">Issue {estimateMode ? 'estimate' : 'bill'}</button>}{bill?.status === 'issued' && <><button type="button" onClick={() => action('paid')} disabled={busy} className="admin-secondary"><CheckCircle size={15} /> Mark paid</button><button type="button" onClick={() => { setError(''); setConfirmCancel(true) }} disabled={busy} className="admin-secondary text-rose-400"><Prohibit size={15} /> Cancel {estimateMode ? 'estimate' : 'bill'}</button></>}{!locked && <button type="submit" form="document-form" disabled={busy} className="btn-primary rounded-lg text-xs">{busy ? 'Working...' : id ? 'Save draft' : `Create ${estimateMode ? 'estimate' : 'bill'} draft`}</button>}</div></footer>}
       </>}
     </section>
+    {confirmCancel && <ConfirmDialog
+      title={`Cancel this ${estimateMode ? 'estimate' : 'bill'}?`}
+      message="It will stay in your records as Cancelled. This cannot be undone."
+      confirmLabel={`Cancel ${estimateMode ? 'estimate' : 'bill'}`}
+      icon={Prohibit}
+      busy={busy}
+      error={error}
+      onCancel={() => setConfirmCancel(false)}
+      onConfirm={() => action('void')}
+    />}
   </div>
 }
 
@@ -236,23 +269,26 @@ export default function BillsAndEstimates() {
   const leadId = params.get('lead')
   const [documents, setDocuments] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
   const [error, setError] = useState('')
   useEffect(() => {
     let active = true
     api('/api/admin/bills').then((data) => { if (active) setDocuments(data) }).catch((err) => { if (active) setError(err.message) })
     return () => { active = false }
   }, [id, leadId, newType])
-  async function deleteDocument(document) {
-    const kind = document.estimate?.type === 'estimate' ? 'estimate' : 'bill'
-    const number = document.estimate?.type === 'estimate' ? (document.estimate.number || `#${document.id}`) : (document.bill_number || `#${document.id}`)
-    if (!window.confirm(`Delete ${kind} ${number}? It will disappear from this list and cannot be opened here afterward.`)) return
+  async function deleteDocument() {
+    if (!pendingDelete) return
+    const document = pendingDelete
     setDeletingId(document.id)
     setError('')
+    setDeleteError('')
     try {
       await api(`/api/admin/bills/${document.id}`, { method: 'DELETE' })
       setDocuments((current) => current?.filter((item) => item.id !== document.id) ?? current)
+      setPendingDelete(null)
       if (String(id) === String(document.id)) navigate('/admin/bills')
-    } catch (err) { setError(err.message) } finally { setDeletingId(null) }
+    } catch (err) { setDeleteError(err.message) } finally { setDeletingId(null) }
   }
   return (
     <div className="space-y-5">
@@ -286,12 +322,21 @@ export default function BillsAndEstimates() {
               <span className="text-kavach-orange capitalize">{statusLabel(document.status)}</span>
               <strong className="sm:text-right">{money(document.total)}</strong>
             </Link>
-            <button type="button" onClick={() => deleteDocument(document)} disabled={deletingId === document.id} aria-label={`Delete ${kind} ${number}`} title={`Delete ${kind}`} className="mx-auto rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50">
+            <button type="button" onClick={() => { setDeleteError(''); setPendingDelete(document) }} disabled={deletingId === document.id} aria-label={`Delete ${kind} ${number}`} title={`Delete ${kind}`} className="mx-auto rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50">
               <Trash size={18} />
             </button>
           </div>
         }) : <p className="p-8 text-sm text-slate-400">{documents ? 'No documents yet. Create an estimate to get started.' : 'Loading documents...'}</p>}
       </div>
+      {pendingDelete && <ConfirmDialog
+        title={`Delete ${pendingDelete.estimate?.type === 'estimate' ? (pendingDelete.estimate.number || `estimate #${pendingDelete.id}`) : (pendingDelete.bill_number || `bill #${pendingDelete.id}`)}?`}
+        message="It will disappear from this list and cannot be opened here afterward."
+        confirmLabel={`Delete ${pendingDelete.estimate?.type === 'estimate' ? 'estimate' : 'bill'}`}
+        busy={deletingId === pendingDelete.id}
+        error={deleteError}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={deleteDocument}
+      />}
       {(id || leadId || params.has('new')) && <DocumentEditor id={id} leadId={leadId} newType={newType} />}
     </div>
   )
