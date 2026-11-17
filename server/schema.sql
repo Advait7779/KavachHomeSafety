@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS bills (
   customer JSONB NOT NULL,
   business JSONB NOT NULL,
   estimate JSONB NOT NULL DEFAULT '{}'::jsonb,
+  draft_data JSONB,
   issue_date DATE,
   due_date DATE,
   notes TEXT NOT NULL DEFAULT '',
@@ -91,6 +92,7 @@ CREATE TABLE IF NOT EXISTS bills (
 CREATE INDEX IF NOT EXISTS bills_created_idx ON bills (created_at DESC);
 CREATE INDEX IF NOT EXISTS bills_status_idx ON bills (status);
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS estimate JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE bills ADD COLUMN IF NOT EXISTS draft_data JSONB;
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS bill_items (
   id BIGSERIAL PRIMARY KEY,

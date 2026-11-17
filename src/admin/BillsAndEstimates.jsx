@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CheckCircle, CloudArrowUp, Eye, FilePdf, Plus, Prohibit, Trash, X } from '@phosphor-icons/react'
 import { amountInWords, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
 import { useSite } from '../site/SiteContext'
@@ -46,6 +46,22 @@ function blankForm(business, type = 'estimate') {
 }
 
 function toForm(bill) {
+  if (bill.draft_data) {
+    const draft = bill.draft_data
+    const estimate = mergeEstimate(draft.estimate || bill.estimate || {}, bill.business)
+    estimate.type = draft.estimate?.type || bill.estimate?.type || 'invoice'
+    estimate.number = bill.estimate?.number || estimate.number
+    return {
+      leadId: draft.leadId ?? bill.lead_id,
+      customer: draft.customer,
+      issueDate: draft.issueDate || '',
+      dueDate: draft.dueDate || '',
+      notes: draft.notes || '',
+      estimate,
+      discount: draft.discount,
+      items: draft.items.length ? draft.items : [blankItem()],
+    }
+  }
   const estimate = mergeEstimate(bill.estimate || {}, bill.business)
   estimate.type = bill.estimate?.type || 'invoice'
   return {
@@ -203,11 +219,13 @@ function DocumentEditor({ id, leadId, newType }) {
 
   async function save(event) {
     event.preventDefault()
+    const saveProgress = event.nativeEvent.submitter?.dataset.saveProgress === 'true'
     setBusy(true); setError(''); setMessage('')
     try {
-      const result = await api(id ? `/api/admin/bills/${id}` : '/api/admin/bills', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload()) })
+      const result = await api(id ? `/api/admin/bills/${id}` : '/api/admin/bills', { method: id ? 'PATCH' : 'POST', body: JSON.stringify({ ...payload(), saveProgress }) })
       setBill(result); setForm(toForm(result)); setMessage('Draft saved.')
-      if (!id) navigate(`/admin/bills/${result.id}`, { replace: true })
+      if (saveProgress) navigate('/admin/bills', { state: { draftSaved: true } })
+      else if (!id) navigate(`/admin/bills/${result.id}`, { replace: true })
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
 
@@ -255,7 +273,7 @@ function DocumentEditor({ id, leadId, newType }) {
           </form>
         </div>
         {tab === 'preview' && <div className="flex min-h-0 flex-1 flex-col bg-[#222731]"><div className="flex flex-wrap items-center justify-between gap-2 border-b border-kavach-border px-4 py-2 text-xs sm:px-6"><span className="text-slate-300">Preview of the current fields</span><div className="flex gap-3"><a className="font-semibold text-kavach-orange" href={previewUrl} target="_blank" rel="noopener noreferrer">Open PDF</a><a className="font-semibold text-kavach-orange" href={previewUrl} download={`${estimateMode ? 'estimate' : 'bill'}-preview.pdf`}>Download PDF</a></div></div><DocumentPreview form={form} totals={totals} business={business} /></div>}
-        {tab === 'customize' && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-kavach-border bg-kavach-dark px-4 py-3 sm:px-6"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">{!estimateMode && <span className="text-slate-400">Subtotal <strong className="ml-1 text-white">{money(totals.subtotal)}</strong></span>}<label className="flex items-center gap-2 text-slate-400">Discount <input aria-label="Discount in rupees" className="admin-input !w-24 !px-2 !py-1" type="number" min="0" step="any" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} disabled={locked} /></label><strong className="text-sm text-kavach-orange">Total {money(totals.total)}</strong></div><div className="flex flex-wrap items-center gap-2">{id && <a className="admin-secondary" href={`/api/admin/bills/${id}/pdf`} target="_blank" rel="noopener noreferrer"><FilePdf size={15} /> Saved PDF</a>}{bill?.status === 'draft' && <button type="button" onClick={() => action('issue')} disabled={busy || dirty} title={dirty ? 'Save the draft before issuing' : ''} className="admin-secondary">Issue {estimateMode ? 'estimate' : 'bill'}</button>}{bill?.status === 'issued' && <><button type="button" onClick={() => action('paid')} disabled={busy} className="admin-secondary"><CheckCircle size={15} /> Mark paid</button><button type="button" onClick={() => { setError(''); setConfirmCancel(true) }} disabled={busy} className="admin-secondary text-rose-400"><Prohibit size={15} /> Cancel {estimateMode ? 'estimate' : 'bill'}</button></>}{!locked && <button type="submit" form="document-form" disabled={busy} className="btn-primary rounded-lg text-xs">{busy ? 'Working...' : id ? 'Save draft' : `Create ${estimateMode ? 'estimate' : 'bill'} draft`}</button>}</div></footer>}
+        {tab === 'customize' && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-kavach-border bg-kavach-dark px-4 py-3 sm:px-6"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">{!estimateMode && <span className="text-slate-400">Subtotal <strong className="ml-1 text-white">{money(totals.subtotal)}</strong></span>}<label className="flex items-center gap-2 text-slate-400">Discount <input aria-label="Discount in rupees" className="admin-input !w-24 !px-2 !py-1" type="number" min="0" step="any" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} disabled={locked} /></label><strong className="text-sm text-kavach-orange">Total {money(totals.total)}</strong></div><div className="flex flex-wrap items-center gap-2">{id && !bill?.draft_data && <a className="admin-secondary" href={`/api/admin/bills/${id}/pdf`} target="_blank" rel="noopener noreferrer"><FilePdf size={15} /> Saved PDF</a>}{bill?.status === 'draft' && <button type="button" onClick={() => action('issue')} disabled={busy || dirty || Boolean(bill?.draft_data)} title={bill?.draft_data ? 'Complete and save the draft before issuing' : dirty ? 'Save the draft before issuing' : ''} className="admin-secondary">Issue {estimateMode ? 'estimate' : 'bill'}</button>}{bill?.status === 'issued' && <><button type="button" onClick={() => action('paid')} disabled={busy} className="admin-secondary"><CheckCircle size={15} /> Mark paid</button><button type="button" onClick={() => { setError(''); setConfirmCancel(true) }} disabled={busy} className="admin-secondary text-rose-400"><Prohibit size={15} /> Cancel {estimateMode ? 'estimate' : 'bill'}</button></>}{!locked && <button type="submit" form="document-form" formNoValidate data-save-progress="true" disabled={busy} className="admin-secondary">Save for later</button>}{!locked && <button type="submit" form="document-form" disabled={busy} className="btn-primary rounded-lg text-xs">{busy ? 'Working...' : id ? 'Save draft' : `Create ${estimateMode ? 'estimate' : 'bill'} draft`}</button>}</div></footer>}
       </>}
     </section>
     {confirmCancel && <ConfirmDialog
@@ -274,6 +292,7 @@ function DocumentEditor({ id, leadId, newType }) {
 export default function BillsAndEstimates() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [params] = useSearchParams()
   const newType = params.get('new') === 'invoice' ? 'invoice' : 'estimate'
   const leadId = params.get('lead')
@@ -313,6 +332,7 @@ export default function BillsAndEstimates() {
         </div>
       </div>
       {error && <p className="text-rose-400 text-sm" role="alert">{error}</p>}
+      {location.state?.draftSaved && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">Draft saved. Open it from this list whenever you are ready to continue.</p>}
       <div className="admin-card overflow-hidden">
         <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_4rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
           <div className="grid grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] gap-3 px-5">
@@ -327,7 +347,7 @@ export default function BillsAndEstimates() {
           return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_4rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
             <Link to={`/admin/bills/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm sm:grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] sm:gap-3">
               <strong className="truncate">{number}</strong>
-              <span className="truncate text-slate-300">{document.customer?.name}</span>
+              <span className="truncate text-slate-300">{document.customer?.name || 'Customer not added'}</span>
               <span className="text-slate-400 capitalize">{isEstimate ? 'Estimate' : 'Bill'}</span>
               <span className="text-kavach-orange capitalize">{statusLabel(document.status)}</span>
               <strong className="sm:text-right">{money(document.total)}</strong>
