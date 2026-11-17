@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit'
 import { localPdfImage } from './pdf.js'
-import { amountInWords, mergeEstimate } from '../shared/estimate.js'
+import { amountInWords, isPaymentTermLine, mergeEstimate } from '../shared/estimate.js'
 
 const pageWidth = 595
 const pageHeight = 842
@@ -121,11 +121,28 @@ export async function streamEstimatePdf(res, bill) {
   const textSection = (label, value) => {
     const text = String(value || '').trim()
     if (!text) return
+    const width = right - left
+    const lines = label === 'Terms and conditions' ? text.split(/\r?\n/) : null
     doc.font('Helvetica').fontSize(9)
-    const height = doc.heightOfString(text, { width: right - left }) + 27
+    const contentHeight = lines
+      ? lines.reduce((height, line) => {
+        const payment = isPaymentTermLine(line)
+        doc.font(payment ? 'Helvetica-Bold' : 'Helvetica').fontSize(9)
+        return height + (payment ? 9 : 0) + doc.heightOfString(line || ' ', { width })
+      }, 0)
+      : doc.heightOfString(text, { width })
+    const height = contentHeight + 27
     ensureSpace(height)
     doc.fillColor(dark).font('Helvetica-Bold').fontSize(9).text(label, left, y)
-    doc.font('Helvetica').fontSize(9).text(text, left, y + 15, { width: right - left })
+    if (lines) {
+      let lineY = y + 15
+      for (const line of lines) {
+        const payment = isPaymentTermLine(line)
+        if (payment) lineY += 9
+        doc.font(payment ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).text(line || ' ', left, lineY, { width })
+        lineY += doc.heightOfString(line || ' ', { width })
+      }
+    } else doc.font('Helvetica').fontSize(9).text(text, left, y + 15, { width })
     y += height
   }
   textSection('Description', estimate.description || bill.notes)

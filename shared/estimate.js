@@ -17,6 +17,8 @@ export const defaultEstimateTerms = [
   'Payment: 80% in advance, 20% after completing the work.',
 ].join('\n')
 
+export const isPaymentTermLine = (line) => /^\s*Payment\s*:/i.test(String(line))
+
 export function estimateDefaults(business = {}) {
   return {
     type: 'estimate',
