@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import defaultContent from '../shared/defaultContent.json' with { type: 'json' }
+import { estimateDefaults } from '../shared/estimate.js'
 
 if (!process.env.TEST_DATABASE_URL || !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD || process.env.TEST_DATABASE_CONFIRM !== 'disposable') {
   throw new Error('Set TEST_DATABASE_URL, TEST_DATABASE_CONFIRM=disposable, ADMIN_EMAIL, and ADMIN_PASSWORD for the disposable integration-test database')
@@ -36,6 +37,10 @@ try {
   let result = await request('/api/public/site')
   assert.equal(result.response.status, 200)
   assert.equal(result.data.business.name, 'Kavach')
+  const defaultTerms = estimateDefaults(defaultContent.business).terms
+  assert.match(defaultTerms, /SS316/)
+  assert.match(defaultTerms, /80% in advance/)
+  assert.doesNotMatch(defaultTerms, /Chirag/i)
 
   result = await request('/')
   assert.equal(result.response.status, 200)

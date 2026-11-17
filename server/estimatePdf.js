@@ -115,9 +115,6 @@ export async function streamEstimatePdf(res, bill) {
     doc.moveTo(345, amountY + 17).lineTo(right, amountY + 17).strokeColor(line).lineWidth(0.6).stroke()
     amountY += 23
   }
-  summaryRow('Sub Total', bill.subtotal)
-  if (Number(bill.discount)) summaryRow('Discount', -Number(bill.discount))
-  if (Number(bill.tax_total)) summaryRow('Tax', bill.tax_total)
   summaryRow('Total', bill.total, true)
   y = Math.max(summaryY + wordsHeight, amountY) + 16
 

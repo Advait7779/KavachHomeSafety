@@ -5,6 +5,18 @@ export function fullCompanyName(business = {}) {
   return [name, business.tagline].filter(Boolean).join(' ')
 }
 
+export const defaultEstimateTerms = [
+  'SS wire rope',
+  'SS wire rope grade: SS316',
+  'Distance between two ropes: 2 inch',
+  'Screw: SS304 (3 inch, 8 mm)',
+  'Stiffener/Plus: SS304',
+  'Wire life: 30 years',
+  'Installation warranty: 8 years',
+  'Aluminium track weight: 1.9 kg',
+  'Payment: 80% in advance, 20% after completing the work.',
+].join('\n')
+
 export function estimateDefaults(business = {}) {
   return {
     type: 'estimate',
@@ -22,7 +34,7 @@ export function estimateDefaults(business = {}) {
     },
     description: '',
     paymentTerms: '',
-    terms: business.billTerms || '',
+    terms: defaultEstimateTerms,
     amountWords: '',
   }
 }
