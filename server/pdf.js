@@ -99,10 +99,17 @@ export async function streamBillPdf(res, bill) {
   if (footerY > pageBottom) { doc.addPage(); footerY = 50 }
   const terms = bill.notes || bill.business.billTerms || ''
   doc.font(pdfFonts.regular).fontSize(9).fillColor('#555555')
-  if (terms) doc.text(terms, 48, footerY, { width: 490 })
+  if (terms) {
+    let termsY = footerY
+    for (const line of terms.split(/\r?\n/)) {
+      doc.font(/^Thank you for choosing Kavach\.?$/i.test(line.trim()) ? pdfFonts.bold : pdfFonts.regular)
+        .text(line || ' ', 48, termsY, { width: 490 })
+      termsY = doc.y
+    }
+  }
   let paymentY = terms ? doc.y + 12 : footerY
   if (paymentY > pageBottom) { doc.addPage(); paymentY = 50 }
-  if (bill.business.paymentDetails) doc.text(`Payment details: ${bill.business.paymentDetails}`, 48, paymentY, { width: 490 })
+  if (bill.business.paymentDetails) doc.font(pdfFonts.regular).text(`Payment details: ${bill.business.paymentDetails}`, 48, paymentY, { width: 490 })
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `inline; filename="${bill.bill_number || `draft-${bill.id}`}.pdf"`)
   doc.pipe(res)

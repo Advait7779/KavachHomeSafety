@@ -126,6 +126,12 @@ function EstimateTextSection({ label, value }) {
   </section>
 }
 
+function BillTerms({ text }) {
+  return <div>{String(text).split(/\r?\n/).map((line, index) =>
+    <p key={index} className={`whitespace-pre-wrap ${/^Thank you for choosing Kavach\.?$/i.test(line.trim()) ? 'font-bold' : ''}`}>{line || '\u00a0'}</p>,
+  )}</div>
+}
+
 function DocumentPreview({ form, totals, business }) {
   const containerRef = useRef(null)
   const [scale, setScale] = useState(1)
@@ -154,7 +160,7 @@ function DocumentPreview({ form, totals, business }) {
       <div className="px-8 pb-8"><table className="mt-5 w-full table-fixed text-xs"><thead><tr className="bg-[#1a1e27] text-white"><th className="w-[43%] px-2 py-2 text-left">{estimateMode ? 'Item name' : 'Description'}</th>{estimateMode && <th className="w-[13%] px-2 py-2 text-left">Code</th>}<th className="w-[14%] px-2 py-2 text-right">Qty</th><th className="w-[15%] px-2 py-2 text-right">Rate</th><th className="px-2 py-2 text-right">Amount</th></tr></thead><tbody>{form.items.map((item, index) => <tr key={index} className="border-b border-slate-200"><td className="px-2 py-3 font-semibold">{item.description || 'Item description'}</td>{estimateMode && <td className="px-2 py-3">{item.itemCode}</td>}<td className="px-2 py-3 text-right">{Number(item.quantity || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })} {item.unit}</td><td className="px-2 py-3 text-right">{money(item.unitPrice)}</td><td className="px-2 py-3 text-right">{money(Number(item.quantity || 0) * Number(item.unitPrice || 0))}</td></tr>)}</tbody></table>
         {estimateMode && <p className="border-b border-slate-500 px-2 py-2 text-xs font-bold">Total quantity: {totalQuantity.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>}
         <div className="mt-5 grid grid-cols-2 gap-6 text-xs"><div>{estimateMode && <><h3 className="font-bold">Estimate Amount In Words</h3><p className="mt-2">{form.estimate.amountWords || amountInWords(totals.total)}</p></>}</div><div className="space-y-2">{!estimateMode && <p className="flex justify-between border-b pb-1"><span>Subtotal</span><span>{money(totals.subtotal)}</span></p>}{!estimateMode && Number(form.discount) > 0 && <p className="flex justify-between border-b pb-1"><span>Discount</span><span>-{money(form.discount)}</span></p>}<p className="flex justify-between border-b pb-1 font-bold"><span>Total</span><span>{money(totals.total)}</span></p></div></div>
-        <div className="mt-6 space-y-4 text-xs">{estimateMode ? [['Description', form.estimate.description], ['Payment', form.estimate.paymentTerms], ['Terms and conditions', form.estimate.terms]].filter(([, value]) => value).map(([label, value]) => <EstimateTextSection key={label} label={label} value={value} />) : <>{(form.notes || business.billTerms) && <p className="whitespace-pre-wrap">{form.notes || business.billTerms}</p>}{business.paymentDetails && <p className="whitespace-pre-wrap">Payment details: {business.paymentDetails}</p>}</>}</div>
+        <div className="mt-6 space-y-4 text-xs">{estimateMode ? [['Description', form.estimate.description], ['Payment', form.estimate.paymentTerms], ['Terms and conditions', form.estimate.terms]].filter(([, value]) => value).map(([label, value]) => <EstimateTextSection key={label} label={label} value={value} />) : <>{(form.notes || business.billTerms) && <BillTerms text={form.notes || business.billTerms} />}{business.paymentDetails && <p className="whitespace-pre-wrap">Payment details: {business.paymentDetails}</p>}</>}</div>
       </div>
     </article>
   </div>
