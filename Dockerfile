@@ -23,8 +23,8 @@ COPY shared ./shared
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist-server ./dist-server
 RUN mkdir -p /app/uploads && chown node:node /app/uploads
-ENV NODE_ENV=production PORT=4005 UPLOAD_DIR=/app/uploads
-EXPOSE 4005
+ENV NODE_ENV=production PORT=6002 UPLOAD_DIR=/app/uploads
+EXPOSE 6002
 USER node
 CMD ["node", "server/index.js"]
 

@@ -11,6 +11,6 @@ await pool.query('INSERT INTO site_content (id, published, draft) VALUES (1, $1,
 await pool.query("UPDATE site_content SET published = jsonb_set(published, '{seo}', $1::jsonb) WHERE NOT (published ? 'seo')", [JSON.stringify(defaultContent.seo)])
 await pool.query("UPDATE site_content SET draft = jsonb_set(draft, '{seo}', $1::jsonb) WHERE NOT (draft ? 'seo')", [JSON.stringify(defaultContent.seo)])
 await bootstrapAdmin()
-const port = Number(process.env.PORT || 4005)
+const port = Number(process.env.PORT || 6002)
 const host = process.env.HOST || '0.0.0.0'
 app.listen(port, host, () => console.log(`Kavach API listening on ${host}:${port}`))
