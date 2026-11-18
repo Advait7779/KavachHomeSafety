@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { SquaresFour, UsersThree, PaintBrush, Receipt, FileText, GearSix, SignOut, List, X, ArrowSquareOut } from '@phosphor-icons/react'
+import { SquaresFour, UsersThree, PaintBrush, Receipt, FileText, GearSix, SignOut, List, X, ArrowSquareOut, Eye, EyeSlash } from '@phosphor-icons/react'
 import { api, setCsrfToken } from './api'
 import Dashboard from './Dashboard'
 import Leads from './Leads'
@@ -21,6 +21,7 @@ const navigation = [
 function Login({ onLogin, business }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   async function submit(event) {
@@ -43,7 +44,7 @@ function Login({ onLogin, business }) {
       <h1 className="text-3xl font-bold mb-2">Welcome back</h1><p className="text-sm text-slate-400 mb-7">Sign in to manage enquiries, your site and bills.</p>
       <form onSubmit={submit} className="space-y-5">
         <label className="admin-label">Email<input className="admin-input mt-2" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" /></label>
-        <label className="admin-label">Password<input className="admin-input mt-2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" /></label>
+        <div><label className="admin-label" htmlFor="admin-password">Password</label><div className="relative mt-2"><input id="admin-password" className="admin-input !pr-12" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-kavach-orange focus-visible:outline-2 focus-visible:outline-kavach-orange">{showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}</button></div></div>
         {error && <p className="text-sm text-rose-400" role="alert">{error}</p>}
         <button className="btn-primary w-full rounded-xl" disabled={busy}>{busy ? 'Signing in...' : 'Sign in'}</button>
       </form>
