@@ -91,8 +91,8 @@ app.get('/api/admin/dashboard', asyncRoute(async (_req, res) => {
     pool.query(`SELECT count(*)::int AS total,
       count(*) FILTER (WHERE status = 'new')::int AS new,
       count(*) FILTER (WHERE status IN ('contacted','survey_scheduled','quoted'))::int AS active,
-      count(*) FILTER (WHERE status = 'won')::int AS won FROM leads`),
-    pool.query('SELECT id, name, phone, service, status, created_at FROM leads ORDER BY created_at DESC LIMIT 6'),
+      count(*) FILTER (WHERE status = 'won')::int AS won FROM leads WHERE deleted_at IS NULL`),
+    pool.query('SELECT id, name, phone, service, status, created_at FROM leads WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 6'),
     pool.query(`SELECT count(*) FILTER (WHERE status = 'issued' AND coalesce(estimate->>'type', 'invoice') = 'invoice')::int AS outstanding,
       count(*) FILTER (WHERE status = 'paid' AND coalesce(estimate->>'type', 'invoice') = 'invoice')::int AS paid,
       coalesce(sum(total) FILTER (WHERE status = 'issued' AND coalesce(estimate->>'type', 'invoice') = 'invoice'), 0) AS outstanding_total FROM bills WHERE deleted_at IS NULL`),
@@ -101,13 +101,16 @@ app.get('/api/admin/dashboard', asyncRoute(async (_req, res) => {
 }))
 
 const leadStatus = z.enum(['new', 'contacted', 'survey_scheduled', 'quoted', 'won', 'lost'])
+const leadEditInput = leadInput.pick({ name: true, phone: true, service: true, message: true }).partial()
+  .extend({ status: leadStatus.optional() })
+  .refine((value) => Object.keys(value).length > 0)
 app.get('/api/admin/leads', asyncRoute(async (req, res) => {
   const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1)
   const limit = 20
   const status = req.query.status && leadStatus.safeParse(req.query.status).success ? req.query.status : null
   const search = String(req.query.search || '').trim().slice(0, 100)
   const values = [status, `%${search}%`, limit, (page - 1) * limit]
-  const where = `WHERE ($1::text IS NULL OR status = $1) AND ($2 = '%%' OR name ILIKE $2 OR phone ILIKE $2 OR service ILIKE $2)`
+  const where = `WHERE deleted_at IS NULL AND ($1::text IS NULL OR status = $1) AND ($2 = '%%' OR name ILIKE $2 OR phone ILIKE $2 OR service ILIKE $2)`
   const [items, count] = await Promise.all([
     pool.query(`SELECT * FROM leads ${where} ORDER BY created_at DESC LIMIT $3 OFFSET $4`, values),
     pool.query(`SELECT count(*)::int AS total FROM leads ${where}`, values.slice(0, 2)),
@@ -115,25 +118,41 @@ app.get('/api/admin/leads', asyncRoute(async (req, res) => {
   res.json({ items: items.rows, total: count.rows[0].total, page, pages: Math.ceil(count.rows[0].total / limit) })
 }))
 app.get('/api/admin/leads/:id', asyncRoute(async (req, res) => {
-  const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [req.params.id])
+  const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [req.params.id])
   if (!rows[0]) return res.status(404).json({ error: 'Lead not found' })
   const notes = await pool.query('SELECT n.*, u.email AS author FROM lead_notes n JOIN admin_users u ON u.id = n.admin_user_id WHERE lead_id = $1 ORDER BY n.created_at DESC', [req.params.id])
   res.json({ ...rows[0], notes: notes.rows })
 }))
 app.patch('/api/admin/leads/:id', asyncRoute(async (req, res) => {
-  const status = leadStatus.parse(req.body?.status)
+  const changes = leadEditInput.parse(req.body)
   const lead = await transaction(async (db) => {
-    const { rows } = await db.query('UPDATE leads SET status = $1, updated_at = now() WHERE id = $2 RETURNING *', [status, req.params.id])
+    const { rows } = await db.query(`UPDATE leads SET name = coalesce($1, name), phone = coalesce($2, phone),
+      service = coalesce($3, service), message = coalesce($4, message), status = coalesce($5, status),
+      updated_at = now() WHERE id = $6 AND deleted_at IS NULL RETURNING *`,
+      [changes.name ?? null, changes.phone ?? null, changes.service ?? null, changes.message ?? null, changes.status ?? null, req.params.id])
     if (!rows[0]) return null
-    await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, `lead_status_${status}`, String(rows[0].id)])
+    if (changes.status) await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, `lead_status_${changes.status}`, String(rows[0].id)])
+    if (Object.keys(changes).some((key) => key !== 'status')) await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, 'lead_updated', String(rows[0].id)])
     return rows[0]
   })
   if (!lead) return res.status(404).json({ error: 'Lead not found' })
   res.json(lead)
 }))
+app.delete('/api/admin/leads/:id', asyncRoute(async (req, res) => {
+  const deleted = await transaction(async (db) => {
+    const { rows } = await db.query('UPDATE leads SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id', [req.params.id])
+    if (!rows[0]) return false
+    await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, 'lead_deleted', String(rows[0].id)])
+    return true
+  })
+  if (!deleted) return res.status(404).json({ error: 'Lead not found' })
+  res.status(204).end()
+}))
 app.post('/api/admin/leads/:id/notes', asyncRoute(async (req, res) => {
   const body = z.string().trim().min(1).max(2000).parse(req.body?.body)
-  const { rows } = await pool.query('INSERT INTO lead_notes (lead_id, admin_user_id, body) VALUES ($1, $2, $3) RETURNING *', [req.params.id, req.admin.id, body])
+  const { rows } = await pool.query(`INSERT INTO lead_notes (lead_id, admin_user_id, body)
+    SELECT id, $2, $3 FROM leads WHERE id = $1 AND deleted_at IS NULL RETURNING *`, [req.params.id, req.admin.id, body])
+  if (!rows[0]) return res.status(404).json({ error: 'Lead not found' })
   res.status(201).json(rows[0])
 }))
 

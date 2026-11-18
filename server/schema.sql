@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS leads (
 );
 CREATE INDEX IF NOT EXISTS leads_created_idx ON leads (created_at DESC);
 CREATE INDEX IF NOT EXISTS leads_status_idx ON leads (status);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS lead_notes (
   id BIGSERIAL PRIMARY KEY,
