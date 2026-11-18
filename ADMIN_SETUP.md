@@ -1,6 +1,6 @@
 # Admin panel setup
 
-The admin UI is at `/admin`. The backend requires PostgreSQL. Copy `.env.example` to `.env` and set a strong database password, admin email, and admin password (12-72 UTF-8 bytes). The first API start creates the initial admin account only if no account exists. Later changes to `ADMIN_PASSWORD` do not reset an existing account.
+The admin UI is at `/admin`. The backend requires PostgreSQL. Copy `.env.example` to `.env` and set a strong database password, admin email, and admin password (at least 6 characters, at most 72 UTF-8 bytes). The first API start creates the initial admin account only if no account exists. Later changes to `ADMIN_PASSWORD` do not reset an existing account.
 
 ## Docker Compose
 

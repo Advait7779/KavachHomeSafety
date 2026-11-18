@@ -43,7 +43,7 @@ export default function Settings({ email }) {
       <div className="mb-6 flex items-center gap-3"><div className="grey-inset flex h-10 w-10 items-center justify-center rounded-xl text-kavach-orange"><LockKey size={21} weight="duotone" /></div><div><h2 className="text-lg font-bold">Change password</h2><p className="text-xs text-slate-400">Signed in as {email}</p></div></div>
       <form onSubmit={submit} className="space-y-4">
         <PasswordField id="current-password" label="Current password" value={currentPassword} onChange={setCurrentPassword} visible={showCurrentPassword} onToggle={() => setShowCurrentPassword((show) => !show)} autoComplete="current-password" />
-        <PasswordField id="new-password" label="New password" value={newPassword} onChange={setNewPassword} visible={showNewPassword} onToggle={() => setShowNewPassword((show) => !show)} autoComplete="new-password" minLength={12} />
+        <PasswordField id="new-password" label="New password" value={newPassword} onChange={setNewPassword} visible={showNewPassword} onToggle={() => setShowNewPassword((show) => !show)} autoComplete="new-password" minLength={6} />
         {error && <p className="text-sm text-rose-400" role="alert">{error}</p>}
         {message && <p className="flex items-center gap-2 text-sm text-emerald-400"><CheckCircle size={17} />{message}</p>}
         <button className="btn-primary rounded-xl text-xs" disabled={busy}>{busy ? 'Updating...' : 'Update password'}</button>

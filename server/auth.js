@@ -16,8 +16,8 @@ export async function bootstrapAdmin() {
   if (rows[0].count !== 0) return
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()
   const password = process.env.ADMIN_PASSWORD
-  if (!email || !password || password.length < 12 || Buffer.byteLength(password) > 72) {
-    throw new Error('No admin account exists. Set ADMIN_EMAIL and ADMIN_PASSWORD (12-72 UTF-8 bytes) before starting.')
+  if (!email || !password || password.length < 6 || Buffer.byteLength(password) > 72) {
+    throw new Error('No admin account exists. Set ADMIN_EMAIL and ADMIN_PASSWORD (at least 6 characters, at most 72 UTF-8 bytes) before starting.')
   }
   const hash = await bcrypt.hash(password, 12)
   await pool.query('INSERT INTO admin_users (email, password_hash) VALUES ($1, $2)', [email, hash])
@@ -75,7 +75,7 @@ export async function logout(req, res) {
 export async function changePassword(req, res) {
   const currentPassword = String(req.body?.currentPassword || '')
   const newPassword = String(req.body?.newPassword || '')
-  if (newPassword.length < 12 || Buffer.byteLength(newPassword) > 72) return res.status(400).json({ error: 'New password must have 12-72 UTF-8 bytes' })
+  if (newPassword.length < 6 || Buffer.byteLength(newPassword) > 72) return res.status(400).json({ error: 'New password must have at least 6 characters and at most 72 UTF-8 bytes' })
   const hash = await bcrypt.hash(newPassword, 12)
   const changed = await transaction(async (db) => {
     const { rows } = await db.query('SELECT password_hash FROM admin_users WHERE id = $1 FOR UPDATE', [req.admin.id])
