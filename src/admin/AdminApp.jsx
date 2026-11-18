@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { SquaresFour, UsersThree, PaintBrush, Receipt, FileText, GearSix, SignOut, List, X, ArrowSquareOut, Eye, EyeSlash } from '@phosphor-icons/react'
 import { api, setCsrfToken } from './api'
@@ -17,6 +17,29 @@ const navigation = [
   { path: '/admin/bills', label: 'Bills', icon: Receipt },
   { path: '/admin/settings', label: 'Settings', icon: GearSix },
 ]
+
+function SignOutDialog({ onCancel, onConfirm, busy }) {
+  const dialogRef = useRef(null)
+  const titleId = useId()
+  const messageId = useId()
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    dialog.showModal()
+    return () => dialog.close()
+  }, [])
+
+  return <dialog ref={dialogRef} aria-labelledby={titleId} aria-describedby={messageId} onCancel={(event) => { event.preventDefault(); if (!busy) onCancel() }} className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-kavach-border bg-kavach-card p-0 font-sans text-white shadow-2xl backdrop:bg-black/75">
+    <div className="flex items-start gap-3 border-b border-kavach-border px-5 py-5 sm:px-6">
+      <span className="rounded-xl bg-kavach-orange/10 p-2 text-kavach-orange"><SignOut size={21} /></span>
+      <div><h2 id={titleId} className="text-lg font-bold">Sign out?</h2><p id={messageId} className="mt-2 text-sm leading-6 text-slate-300">You’ll need to sign in again to access the admin panel.</p></div>
+    </div>
+    <div className="flex justify-end gap-2 px-5 py-4 sm:px-6">
+      <button type="button" onClick={onCancel} disabled={busy} autoFocus className="admin-secondary">Stay signed in</button>
+      <button type="button" onClick={onConfirm} disabled={busy} className="btn-primary inline-flex items-center gap-2 rounded-lg text-xs"><SignOut size={16} />{busy ? 'Signing out...' : 'Sign out'}</button>
+    </div>
+  </dialog>
+}
 
 function Login({ onLogin, business }) {
   const [email, setEmail] = useState('')
@@ -58,6 +81,8 @@ export default function AdminApp() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmSignOut, setConfirmSignOut] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -67,9 +92,12 @@ export default function AdminApp() {
   useEffect(() => setMenuOpen(false), [location.pathname])
 
   async function logout() {
+    setSigningOut(true)
     try { await api('/api/admin/auth/logout', { method: 'POST' }) } catch { /* session may already be expired */ }
     setCsrfToken('')
     setUser(null)
+    setConfirmSignOut(false)
+    setSigningOut(false)
     navigate('/admin')
   }
 
@@ -84,10 +112,11 @@ export default function AdminApp() {
       <nav className="p-4 space-y-1 flex-1" aria-label="Admin navigation">
         {navigation.map(({ path, label, icon: Icon }) => <Link key={path} to={path} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${location.pathname === path || (path !== '/admin' && location.pathname.startsWith(path + '/')) ? 'bg-kavach-orange/15 text-kavach-orange border border-kavach-orange/30' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}><Icon size={19} weight="duotone" />{label}</Link>)}
       </nav>
-      <div className="p-4 border-t border-kavach-border space-y-2"><Link to="/" className="flex items-center gap-3 px-4 py-2 text-sm text-slate-400 hover:text-white"><ArrowSquareOut size={18} /> View website</Link><button onClick={logout} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-400 hover:text-white w-full"><SignOut size={18} /> Sign out</button><p className="text-[10px] text-slate-500 px-4 truncate">{user.email}</p></div>
+      <div className="p-4 border-t border-kavach-border space-y-2"><Link to="/" className="flex items-center gap-3 px-4 py-2 text-sm text-slate-400 hover:text-white"><ArrowSquareOut size={18} /> View website</Link><button onClick={() => setConfirmSignOut(true)} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-400 hover:text-white w-full"><SignOut size={18} /> Sign out</button><p className="text-[10px] text-slate-500 px-4 truncate">{user.email}</p></div>
     </aside>
     <div className="flex-1 min-w-0"><header className="h-16 sm:h-20 px-4 sm:px-8 border-b border-kavach-border flex items-center justify-between bg-kavach-dark/60"><div className="flex items-center gap-3"><button className="lg:hidden p-2 rounded-lg grey-inset" onClick={() => setMenuOpen(true)} aria-label="Open menu"><List size={20} /></button><h1 className="text-xl sm:text-2xl font-bold">{current}</h1></div><span className="hidden sm:block text-xs text-slate-400">Kavach management</span></header>
       <main className="p-4 sm:p-8 max-w-[1400px] mx-auto"><Routes><Route path="/admin" element={<Dashboard />} /><Route path="/admin/leads" element={<Leads />} /><Route path="/admin/site" element={<SiteEditor />} /><Route path="/admin/estimates" element={<Bills kind="estimate" />} /><Route path="/admin/estimates/:id" element={<Bills kind="estimate" />} /><Route path="/admin/bills" element={<Bills kind="bill" />} /><Route path="/admin/bills/:id" element={<Bills kind="bill" />} /><Route path="/admin/settings" element={<Settings email={user.email} />} /><Route path="*" element={<Navigate to="/admin" replace />} /></Routes></main>
     </div>
+    {confirmSignOut && <SignOutDialog onCancel={() => setConfirmSignOut(false)} onConfirm={logout} busy={signingOut} />}
   </div>
 }
