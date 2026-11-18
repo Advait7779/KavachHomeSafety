@@ -278,90 +278,183 @@ function savedDocumentInput(body) {
   return { data, items, totals: saveProgress ? { ...totals, total: Math.max(0, totals.total) } : totals, saveProgress }
 }
 
-async function getBill(id, db = pool) {
-  const { rows } = await db.query(`SELECT b.*, converted.id AS converted_bill_id FROM bills b
-    LEFT JOIN bills converted ON converted.source_estimate_id = b.id AND converted.deleted_at IS NULL
-    WHERE b.id = $1 AND b.deleted_at IS NULL`, [id])
+const documentStore = {
+  bill: { table: 'bills', items: 'bill_items', events: 'bill_events', foreignKey: 'bill_id', type: 'invoice' },
+  estimate: { table: 'estimates', items: 'estimate_items', events: 'estimate_events', foreignKey: 'estimate_id', type: 'estimate' },
+}
+
+async function getDocument(kind, id, db = pool) {
+  const store = documentStore[kind]
+  const convertedJoin = kind === 'estimate'
+    ? 'LEFT JOIN bills converted ON converted.source_estimate_id = d.id AND converted.deleted_at IS NULL'
+    : ''
+  const convertedColumn = kind === 'estimate' ? 'converted.id' : 'NULL::bigint'
+  const { rows } = await db.query(`SELECT d.*, ${convertedColumn} AS converted_bill_id FROM ${store.table} d
+    ${convertedJoin} WHERE d.id = $1 AND d.deleted_at IS NULL`, [id])
   if (!rows[0]) return null
-  const items = await db.query('SELECT * FROM bill_items WHERE bill_id = $1 ORDER BY sort_order', [id])
+  const items = await db.query(`SELECT * FROM ${store.items} WHERE ${store.foreignKey} = $1 ORDER BY sort_order`, [id])
   return { ...rows[0], items: items.rows }
 }
 
-async function writeItems(db, billId, items) {
-  await db.query('DELETE FROM bill_items WHERE bill_id = $1', [billId])
+async function writeItems(db, kind, documentId, items) {
+  const store = documentStore[kind]
+  await db.query(`DELETE FROM ${store.items} WHERE ${store.foreignKey} = $1`, [documentId])
   for (const [index, item] of items.entries()) {
-    await db.query('INSERT INTO bill_items (bill_id, description, item_code, quantity, unit, unit_price, tax_rate, sort_order) VALUES ($1,$2,$3,$4,$5,$6,0,$7)', [billId, item.description, item.itemCode, item.quantity, item.unit, item.unitPrice, index])
+    await db.query(`INSERT INTO ${store.items} (${store.foreignKey}, description, item_code, quantity, unit, unit_price, tax_rate, sort_order) VALUES ($1,$2,$3,$4,$5,$6,0,$7)`, [documentId, item.description, item.itemCode, item.quantity, item.unit, item.unitPrice, index])
   }
 }
 
-app.get('/api/admin/bills', asyncRoute(async (_req, res) => {
-  const { rows } = await pool.query(`SELECT b.id, b.bill_number, b.source_estimate_id, converted.id AS converted_bill_id,
-    (b.draft_data IS NOT NULL) AS has_unfinished_fields,
-    b.status, b.customer, b.estimate, b.issue_date, b.due_date, b.total, b.created_at
-    FROM bills b LEFT JOIN bills converted ON converted.source_estimate_id = b.id AND converted.deleted_at IS NULL
-    WHERE b.deleted_at IS NULL ORDER BY b.created_at DESC LIMIT 100`)
-  res.json(rows)
-}))
-app.post('/api/admin/bills/preview', asyncRoute(async (req, res) => {
-  const data = billInput.parse(req.body)
-  const totals = calculateBill(data.items, data.discount)
-  if (totals.total < 0) return res.status(400).json({ error: 'Discount exceeds the bill amount' })
-  const { rows } = await pool.query('SELECT published FROM site_content WHERE id = 1')
-  const bill = {
-    id: 0,
-    bill_number: null,
-    business: rows[0].published.business,
-    estimate: data.estimate || { type: 'invoice' },
-    customer: data.customer,
-    issue_date: data.issueDate,
-    due_date: data.dueDate,
-    notes: data.notes,
-    subtotal: totals.subtotal,
-    discount: totals.discount,
-    tax_total: totals.taxTotal,
-    total: totals.total,
-    items: data.items.map((item) => ({ description: item.description, item_code: item.itemCode, quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice, tax_rate: 0 })),
-  }
-  if (bill.estimate.type === 'estimate') await streamEstimatePdf(res, bill)
-  else await streamBillPdf(res, bill)
-}))
-app.post('/api/admin/bills', asyncRoute(async (req, res) => {
-  const { data, items, totals, saveProgress } = savedDocumentInput(req.body)
-  if (!saveProgress && totals.total < 0) return res.status(400).json({ error: 'Discount exceeds the bill amount' })
-  const bill = await transaction(async (db) => {
-    const site = await db.query('SELECT published FROM site_content WHERE id = 1')
-    const business = site.rows[0].published.business
-    const estimate = data.estimate || { type: 'invoice' }
-    const { rows } = await db.query(
-      `INSERT INTO bills (lead_id, customer, business, estimate, draft_data, issue_date, due_date, notes, subtotal, discount, tax_total, total)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-      [data.leadId || null, data.customer, business, estimate, saveProgress ? data : null, data.issueDate || null, data.dueDate || null, data.notes, totals.subtotal, totals.discount, totals.taxTotal, totals.total],
-    )
-    if (estimate.type === 'estimate' && !estimate.number) {
-      estimate.number = `KAV-EST-${data.issueDate?.slice(0, 4) || new Date().getFullYear()}-${String(rows[0].id).padStart(4, '0')}`
-      await db.query('UPDATE bills SET estimate = $1 WHERE id = $2', [estimate, rows[0].id])
+for (const kind of ['estimate', 'bill']) {
+  const store = documentStore[kind]
+  const label = kind === 'estimate' ? 'Estimate' : 'Bill'
+  const base = kind === 'estimate' ? '/api/admin/estimates' : '/api/admin/bills'
+
+  app.get(base, asyncRoute(async (_req, res) => {
+    const convertedJoin = kind === 'estimate'
+      ? 'LEFT JOIN bills converted ON converted.source_estimate_id = d.id AND converted.deleted_at IS NULL'
+      : ''
+    const convertedColumn = kind === 'estimate' ? 'converted.id' : 'NULL::bigint'
+    const { rows } = await pool.query(`SELECT d.id, ${kind === 'bill' ? 'd.bill_number' : 'NULL::text AS bill_number'},
+      ${kind === 'bill' ? 'd.source_estimate_id' : 'NULL::bigint AS source_estimate_id'}, ${convertedColumn} AS converted_bill_id,
+      (d.draft_data IS NOT NULL) AS has_unfinished_fields, d.status, d.customer, d.estimate,
+      d.issue_date, d.due_date, d.total, d.created_at FROM ${store.table} d ${convertedJoin}
+      WHERE d.deleted_at IS NULL ORDER BY d.created_at DESC LIMIT 100`)
+    res.json(rows)
+  }))
+
+  app.post(`${base}/preview`, asyncRoute(async (req, res) => {
+    const data = billInput.parse(req.body)
+    if (data.estimate?.type && data.estimate.type !== store.type) return res.status(400).json({ error: `Use the ${label.toLowerCase()} section for this document` })
+    const totals = calculateBill(data.items, data.discount)
+    if (totals.total < 0) return res.status(400).json({ error: 'Discount exceeds the document amount' })
+    const { rows } = await pool.query('SELECT published FROM site_content WHERE id = 1')
+    const document = {
+      id: 0, bill_number: null, business: rows[0].published.business,
+      estimate: { ...data.estimate, type: store.type }, customer: data.customer,
+      issue_date: data.issueDate, due_date: kind === 'estimate' ? null : data.dueDate,
+      notes: data.notes, subtotal: totals.subtotal, discount: totals.discount,
+      tax_total: totals.taxTotal, total: totals.total,
+      items: data.items.map((item) => ({ description: item.description, item_code: item.itemCode, quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice, tax_rate: 0 })),
     }
-    await writeItems(db, rows[0].id, items)
-    await db.query('INSERT INTO bill_events (bill_id, admin_user_id, action) VALUES ($1,$2,$3)', [rows[0].id, req.admin.id, 'created'])
-    return getBill(rows[0].id, db)
-  })
-  res.status(201).json(bill)
-}))
-app.get('/api/admin/bills/:id', asyncRoute(async (req, res) => {
-  const bill = await getBill(req.params.id)
-  if (!bill) return res.status(404).json({ error: 'Bill not found' })
-  res.json(bill)
-}))
-app.post('/api/admin/bills/:id/convert', asyncRoute(async (req, res) => {
+    if (kind === 'estimate') await streamEstimatePdf(res, document)
+    else await streamBillPdf(res, document)
+  }))
+
+  app.post(base, asyncRoute(async (req, res) => {
+    const { data, items, totals, saveProgress } = savedDocumentInput(req.body)
+    if (data.estimate?.type && data.estimate.type !== store.type) return res.status(400).json({ error: `Use the ${label.toLowerCase()} section for this document` })
+    if (!saveProgress && totals.total < 0) return res.status(400).json({ error: 'Discount exceeds the document amount' })
+    data.estimate = { ...data.estimate, type: store.type }
+    const document = await transaction(async (db) => {
+      const site = await db.query('SELECT published FROM site_content WHERE id = 1')
+      const business = site.rows[0].published.business
+      const { rows } = await db.query(
+        `INSERT INTO ${store.table} (lead_id, customer, business, estimate, draft_data, issue_date, due_date, notes, subtotal, discount, tax_total, total)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+        [data.leadId || null, data.customer, business, data.estimate, saveProgress ? data : null, data.issueDate || null,
+          kind === 'estimate' ? null : data.dueDate || null, data.notes, totals.subtotal, totals.discount, totals.taxTotal, totals.total],
+      )
+      if (kind === 'estimate' && !data.estimate.number) {
+        data.estimate.number = `KAV-EST-${data.issueDate?.slice(0, 4) || new Date().getFullYear()}-${String(rows[0].id).padStart(4, '0')}`
+        await db.query('UPDATE estimates SET estimate = $1 WHERE id = $2', [data.estimate, rows[0].id])
+      }
+      await writeItems(db, kind, rows[0].id, items)
+      await db.query(`INSERT INTO ${store.events} (${store.foreignKey}, admin_user_id, action) VALUES ($1,$2,$3)`, [rows[0].id, req.admin.id, 'created'])
+      return getDocument(kind, rows[0].id, db)
+    })
+    res.status(201).json(document)
+  }))
+
+  app.get(`${base}/:id`, asyncRoute(async (req, res) => {
+    const document = await getDocument(kind, req.params.id)
+    if (!document) return res.status(404).json({ error: `${label} not found` })
+    res.json(document)
+  }))
+
+  app.patch(`${base}/:id`, asyncRoute(async (req, res) => {
+    const { data, items, totals, saveProgress } = savedDocumentInput(req.body)
+    if (data.estimate?.type && data.estimate.type !== store.type) return res.status(400).json({ error: `Use the ${label.toLowerCase()} section for this document` })
+    if (!saveProgress && totals.total < 0) return res.status(400).json({ error: 'Discount exceeds the document amount' })
+    data.estimate = { ...data.estimate, type: store.type }
+    const document = await transaction(async (db) => {
+      const existing = await db.query(`SELECT status, estimate FROM ${store.table} WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [req.params.id])
+      if (!existing.rows[0]) return null
+      if (existing.rows[0].status !== 'draft') return 'locked'
+      if (kind === 'estimate' && !data.estimate.number) data.estimate.number = existing.rows[0].estimate?.number || ''
+      await db.query(`UPDATE ${store.table} SET lead_id=$1, customer=$2, estimate=$3, draft_data=$4, issue_date=$5, due_date=$6, notes=$7,
+        subtotal=$8, discount=$9, tax_total=$10, total=$11, updated_at=now() WHERE id=$12`,
+        [data.leadId || null, data.customer, data.estimate, saveProgress ? data : null, data.issueDate || null,
+          kind === 'estimate' ? null : data.dueDate || null, data.notes, totals.subtotal, totals.discount, totals.taxTotal, totals.total, req.params.id])
+      await writeItems(db, kind, req.params.id, items)
+      return getDocument(kind, req.params.id, db)
+    })
+    if (!document) return res.status(404).json({ error: `${label} not found` })
+    if (document === 'locked') return res.status(409).json({ error: `Only draft ${kind}s can be edited` })
+    res.json(document)
+  }))
+
+  app.post(`${base}/:id/issue`, asyncRoute(async (req, res) => {
+    const result = await transaction(async (db) => {
+      const existing = await db.query(`SELECT status, draft_data FROM ${store.table} WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [req.params.id])
+      if (!existing.rows[0]) return 'missing'
+      if (existing.rows[0].status !== 'draft') return 'locked'
+      if (existing.rows[0].draft_data) return 'incomplete'
+      if (kind === 'bill') {
+        const sequence = await db.query("SELECT nextval('bill_number_seq') AS value")
+        const year = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Kolkata', year: 'numeric' }).format(new Date())
+        const number = `KH-${year}-${String(sequence.rows[0].value).padStart(5, '0')}`
+        await db.query("UPDATE bills SET status='issued', bill_number=$1, issue_date=coalesce(issue_date, (now() AT TIME ZONE 'Asia/Kolkata')::date), updated_at=now() WHERE id=$2", [number, req.params.id])
+      } else {
+        await db.query("UPDATE estimates SET status='issued', issue_date=coalesce(issue_date, (now() AT TIME ZONE 'Asia/Kolkata')::date), updated_at=now() WHERE id=$1", [req.params.id])
+      }
+      await db.query(`INSERT INTO ${store.events} (${store.foreignKey}, admin_user_id, action) VALUES ($1,$2,$3)`, [req.params.id, req.admin.id, 'issued'])
+      return getDocument(kind, req.params.id, db)
+    })
+    if (result === 'missing') return res.status(404).json({ error: `${label} not found` })
+    if (result === 'locked') return res.status(409).json({ error: `${label} is already issued` })
+    if (result === 'incomplete') return res.status(409).json({ error: 'Complete and save this draft before issuing it' })
+    res.json(result)
+  }))
+
+  for (const action of kind === 'bill' ? ['paid', 'void'] : ['void']) {
+    app.post(`${base}/:id/${action}`, asyncRoute(async (req, res) => {
+      const { rows } = await pool.query(`UPDATE ${store.table} SET status=$1, updated_at=now() WHERE id=$2 AND status='issued' AND deleted_at IS NULL RETURNING *`, [action, req.params.id])
+      if (!rows[0]) return res.status(409).json({ error: `Only issued ${kind}s can change status` })
+      await pool.query(`INSERT INTO ${store.events} (${store.foreignKey}, admin_user_id, action) VALUES ($1,$2,$3)`, [req.params.id, req.admin.id, action])
+      res.json(rows[0])
+    }))
+  }
+
+  app.delete(`${base}/:id`, asyncRoute(async (req, res) => {
+    const deleted = await transaction(async (db) => {
+      const { rows } = await db.query(`UPDATE ${store.table} SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`, [req.params.id])
+      if (!rows[0]) return false
+      await db.query(`INSERT INTO ${store.events} (${store.foreignKey}, admin_user_id, action) VALUES ($1, $2, $3)`, [req.params.id, req.admin.id, 'deleted'])
+      await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, `${kind}_deleted`, String(req.params.id)])
+      return true
+    })
+    if (!deleted) return res.status(404).json({ error: `${label} not found` })
+    res.status(204).end()
+  }))
+
+  app.get(`${base}/:id/pdf`, asyncRoute(async (req, res) => {
+    const document = await getDocument(kind, req.params.id)
+    if (!document) return res.status(404).json({ error: `${label} not found` })
+    if (document.draft_data) return res.status(409).json({ error: 'Complete and save this draft before downloading its PDF' })
+    if (kind === 'estimate') await streamEstimatePdf(res, document)
+    else await streamBillPdf(res, document)
+  }))
+}
+
+app.post('/api/admin/estimates/:id/convert', asyncRoute(async (req, res) => {
   const result = await transaction(async (db) => {
-    const { rows } = await db.query('SELECT * FROM bills WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.params.id])
+    const { rows } = await db.query('SELECT * FROM estimates WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.params.id])
     const source = rows[0]
     if (!source) return { error: 'Estimate not found', status: 404 }
-    if (source.estimate?.type !== 'estimate') return { error: 'Only estimates can be converted to bills', status: 409 }
     if (source.status === 'void') return { error: 'Cancelled estimates cannot be converted', status: 409 }
     if (source.draft_data) return { error: 'Complete and save the estimate before converting it', status: 409 }
     const existing = await db.query('SELECT id FROM bills WHERE source_estimate_id = $1 AND deleted_at IS NULL', [source.id])
-    if (existing.rows[0]) return { bill: await getBill(existing.rows[0].id, db), created: false }
+    if (existing.rows[0]) return { bill: await getDocument('bill', existing.rows[0].id, db), created: false }
     const site = await db.query('SELECT published FROM site_content WHERE id = 1')
     const business = site.rows[0].published.business
     const converted = await db.query(`INSERT INTO bills
@@ -370,76 +463,14 @@ app.post('/api/admin/bills/:id/convert', asyncRoute(async (req, res) => {
       [source.id, source.lead_id, source.customer, business, { type: 'invoice' }, source.subtotal, source.discount, source.total])
     const billId = converted.rows[0].id
     await db.query(`INSERT INTO bill_items (bill_id, description, item_code, quantity, unit, unit_price, tax_rate, sort_order)
-      SELECT $1, description, item_code, quantity, unit, unit_price, 0, sort_order FROM bill_items WHERE bill_id = $2 ORDER BY sort_order`,
+      SELECT $1, description, item_code, quantity, unit, unit_price, 0, sort_order FROM estimate_items WHERE estimate_id = $2 ORDER BY sort_order`,
       [billId, source.id])
     await db.query('INSERT INTO bill_events (bill_id, admin_user_id, action) VALUES ($1, $2, $3)', [billId, req.admin.id, 'converted_from_estimate'])
     await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, 'estimate_converted', String(source.id)])
-    return { bill: await getBill(billId, db), created: true }
+    return { bill: await getDocument('bill', billId, db), created: true }
   })
   if (result.error) return res.status(result.status).json({ error: result.error })
   res.status(result.created ? 201 : 200).json(result.bill)
-}))
-app.patch('/api/admin/bills/:id', asyncRoute(async (req, res) => {
-  const { data, items, totals, saveProgress } = savedDocumentInput(req.body)
-  if (!saveProgress && totals.total < 0) return res.status(400).json({ error: 'Discount exceeds the bill amount' })
-  const bill = await transaction(async (db) => {
-    const existing = await db.query('SELECT status, estimate FROM bills WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.params.id])
-    if (!existing.rows[0]) return null
-    if (existing.rows[0].status !== 'draft') return 'locked'
-    const estimate = data.estimate || { type: 'invoice' }
-    if (estimate.type === 'estimate' && !estimate.number) estimate.number = existing.rows[0].estimate?.number || ''
-    await db.query(`UPDATE bills SET lead_id=$1, customer=$2, estimate=$3, draft_data=$4, issue_date=$5, due_date=$6, notes=$7, subtotal=$8, discount=$9, tax_total=$10, total=$11, updated_at=now() WHERE id=$12`,
-      [data.leadId || null, data.customer, estimate, saveProgress ? data : null, data.issueDate || null, data.dueDate || null, data.notes, totals.subtotal, totals.discount, totals.taxTotal, totals.total, req.params.id])
-    await writeItems(db, req.params.id, items)
-    return getBill(req.params.id, db)
-  })
-  if (!bill) return res.status(404).json({ error: 'Bill not found' })
-  if (bill === 'locked') return res.status(409).json({ error: 'Only draft bills can be edited' })
-  res.json(bill)
-}))
-app.post('/api/admin/bills/:id/issue', asyncRoute(async (req, res) => {
-  const result = await transaction(async (db) => {
-    const existing = await db.query('SELECT status, draft_data FROM bills WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.params.id])
-    if (!existing.rows[0]) return 'missing'
-    if (existing.rows[0].status !== 'draft') return 'locked'
-    if (existing.rows[0].draft_data) return 'incomplete'
-    const sequence = await db.query("SELECT nextval('bill_number_seq') AS value")
-    const year = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Kolkata', year: 'numeric' }).format(new Date())
-    const number = `KH-${year}-${String(sequence.rows[0].value).padStart(5, '0')}`
-    await db.query("UPDATE bills SET status='issued', bill_number=$1, issue_date=coalesce(issue_date, (now() AT TIME ZONE 'Asia/Kolkata')::date), updated_at=now() WHERE id=$2", [number, req.params.id])
-    await db.query('INSERT INTO bill_events (bill_id, admin_user_id, action) VALUES ($1,$2,$3)', [req.params.id, req.admin.id, 'issued'])
-    return getBill(req.params.id, db)
-  })
-  if (result === 'missing') return res.status(404).json({ error: 'Bill not found' })
-  if (result === 'locked') return res.status(409).json({ error: 'Bill is already issued' })
-  if (result === 'incomplete') return res.status(409).json({ error: 'Complete and save this draft before issuing it' })
-  res.json(result)
-}))
-for (const action of ['paid', 'void']) {
-  app.post(`/api/admin/bills/:id/${action}`, asyncRoute(async (req, res) => {
-    const { rows } = await pool.query("UPDATE bills SET status=$1, updated_at=now() WHERE id=$2 AND status='issued' AND deleted_at IS NULL RETURNING *", [action, req.params.id])
-    if (!rows[0]) return res.status(409).json({ error: 'Only issued bills can change status' })
-    await pool.query('INSERT INTO bill_events (bill_id, admin_user_id, action) VALUES ($1,$2,$3)', [req.params.id, req.admin.id, action])
-    res.json(rows[0])
-  }))
-}
-app.delete('/api/admin/bills/:id', asyncRoute(async (req, res) => {
-  const deleted = await transaction(async (db) => {
-    const { rows } = await db.query('UPDATE bills SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id', [req.params.id])
-    if (!rows[0]) return false
-    await db.query('INSERT INTO bill_events (bill_id, admin_user_id, action) VALUES ($1, $2, $3)', [req.params.id, req.admin.id, 'deleted'])
-    await db.query('INSERT INTO admin_events (admin_user_id, action, record_id) VALUES ($1, $2, $3)', [req.admin.id, 'document_deleted', String(req.params.id)])
-    return true
-  })
-  if (!deleted) return res.status(404).json({ error: 'Document not found' })
-  res.status(204).end()
-}))
-app.get('/api/admin/bills/:id/pdf', asyncRoute(async (req, res) => {
-  const bill = await getBill(req.params.id)
-  if (!bill) return res.status(404).json({ error: 'Bill not found' })
-  if (bill.draft_data) return res.status(409).json({ error: 'Complete and save this draft before downloading its PDF' })
-  if (bill.estimate?.type === 'estimate') await streamEstimatePdf(res, bill)
-  else await streamBillPdf(res, bill)
 }))
 
 app.get('/robots.txt', (req, res) => {

@@ -9,7 +9,17 @@ export const pool = new Pool(process.env.DATABASE_URL ? { connectionString: proc
 
 export async function migrate() {
   const schema = await readFile(new URL('./schema.sql', import.meta.url), 'utf8')
-  await pool.query(schema)
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(schema)
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function transaction(fn) {

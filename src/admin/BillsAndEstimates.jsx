@@ -1,10 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowsClockwise, CheckCircle, CloudArrowUp, Eye, FilePdf, Plus, Prohibit, Receipt, Trash, X } from '@phosphor-icons/react'
 import { amountInWords, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
 import { useSite } from '../site/SiteContext'
 import { api, apiBlob } from './api'
-import AdminSelect from './AdminSelect'
 
 const blankItem = () => ({ description: '', itemCode: '', quantity: 1, unit: 'sq ft', unitPrice: 0 })
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -164,6 +163,8 @@ function DocumentPreview({ form, totals, business }) {
 function DocumentEditor({ id, leadId, newType }) {
   const navigate = useNavigate()
   const { business } = useSite()
+  const basePath = newType === 'estimate' ? '/admin/estimates' : '/admin/bills'
+  const apiPath = newType === 'estimate' ? '/api/admin/estimates' : '/api/admin/bills'
   const [form, setForm] = useState(() => blankForm(business, newType))
   const [bill, setBill] = useState(null)
   const [loading, setLoading] = useState(Boolean(id))
@@ -187,20 +188,20 @@ function DocumentEditor({ id, leadId, newType }) {
     let active = true
     if (id) {
       setLoading(true)
-      api(`/api/admin/bills/${id}`).then((data) => { if (active) { setBill(data); setForm(toForm(data)) } }).catch((err) => { if (active) setError(err.message) }).finally(() => { if (active) setLoading(false) })
+      api(`${apiPath}/${id}`).then((data) => { if (active) { setBill(data); setForm(toForm(data)) } }).catch((err) => { if (active) setError(err.message) }).finally(() => { if (active) setLoading(false) })
     } else if (leadId) {
       api(`/api/admin/leads/${leadId}`).then((lead) => { if (active) setForm((current) => ({ ...current, leadId: Number(leadId), customer: { name: lead.name, phone: lead.phone, address: '' }, items: [{ ...blankItem(), description: lead.service }] })) }).catch((err) => { if (active) setError(err.message) })
     } else setForm(blankForm(business, newType))
     return () => { active = false }
-  }, [id, leadId, newType])
+  }, [id, leadId, newType, apiPath])
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
   useEffect(() => {
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const onKeyDown = (event) => { if (event.key === 'Escape' && !confirmCancel) navigate('/admin/bills') }
+    const onKeyDown = (event) => { if (event.key === 'Escape' && !confirmCancel) navigate(basePath) }
     window.addEventListener('keydown', onKeyDown)
     return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKeyDown) }
-  }, [navigate, confirmCancel])
+  }, [navigate, confirmCancel, basePath])
 
   const totals = useMemo(() => {
     const subtotal = form.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0)
@@ -222,10 +223,10 @@ function DocumentEditor({ id, leadId, newType }) {
     const saveProgress = event.nativeEvent.submitter?.dataset.saveProgress === 'true'
     setBusy(true); setError(''); setMessage('')
     try {
-      const result = await api(id ? `/api/admin/bills/${id}` : '/api/admin/bills', { method: id ? 'PATCH' : 'POST', body: JSON.stringify({ ...payload(), saveProgress }) })
+      const result = await api(id ? `${apiPath}/${id}` : apiPath, { method: id ? 'PATCH' : 'POST', body: JSON.stringify({ ...payload(), saveProgress }) })
       setBill(result); setForm(toForm(result)); setMessage('Draft saved.')
-      if (saveProgress) navigate('/admin/bills', { state: { draftSaved: true } })
-      else if (!id) navigate(`/admin/bills/${result.id}`, { replace: true })
+      if (saveProgress) navigate(basePath, { state: { draftSaved: true } })
+      else if (!id) navigate(`${basePath}/${result.id}`, { replace: true })
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
 
@@ -236,8 +237,8 @@ function DocumentEditor({ id, leadId, newType }) {
       previewData.customer = { ...previewData.customer, name: previewData.customer.name.trim() || 'Customer name' }
       previewData.items = previewData.items.map((item) => ({ ...item, description: item.description.trim() || 'Item description', quantity: Number(item.quantity) > 0 ? item.quantity : 1, unit: item.unit.trim() || 'sq ft' }))
       const blob = locked && id
-        ? await apiBlob(`/api/admin/bills/${id}/pdf`)
-        : await apiBlob('/api/admin/bills/preview', { method: 'POST', body: JSON.stringify(previewData) })
+        ? await apiBlob(`${apiPath}/${id}/pdf`)
+        : await apiBlob(`${apiPath}/preview`, { method: 'POST', body: JSON.stringify(previewData) })
       setPreviewUrl(URL.createObjectURL(blob))
       setTab('preview')
     } catch (err) { setError(err.message) } finally { setBusy(false) }
@@ -246,7 +247,7 @@ function DocumentEditor({ id, leadId, newType }) {
   async function action(name) {
     setBusy(true); setError(''); setMessage('')
     try {
-      const result = await api(`/api/admin/bills/${id}/${name}`, { method: 'POST' })
+      const result = await api(`${apiPath}/${id}/${name}`, { method: 'POST' })
       setBill(result)
       setMessage(name === 'issue' ? `Issued ${estimateMode ? result.estimate?.number : result.bill_number}` : name === 'void' ? 'Document cancelled.' : 'Marked paid.')
       if (name === 'void') setConfirmCancel(false)
@@ -256,24 +257,24 @@ function DocumentEditor({ id, leadId, newType }) {
   async function convertToBill() {
     setBusy(true); setError('')
     try {
-      const converted = await api(`/api/admin/bills/${id}/convert`, { method: 'POST' })
+      const converted = await api(`/api/admin/estimates/${id}/convert`, { method: 'POST' })
       navigate(`/admin/bills/${converted.id}`, { replace: true })
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
 
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-2 sm:p-5" role="presentation">
-    <div className="absolute inset-0" onClick={() => navigate('/admin/bills')} aria-hidden="true" />
+    <div className="absolute inset-0" onClick={() => navigate(basePath)} aria-hidden="true" />
     <section className="document-editor relative flex h-[min(96vh,1020px)] w-full max-w-[1000px] min-h-0 flex-col overflow-hidden rounded-2xl border border-kavach-border bg-kavach-dark shadow-2xl" role="dialog" aria-modal="true" aria-label={title}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-kavach-border px-4 py-3 sm:px-6">
         <div className="min-w-0"><h2 className="truncate text-lg font-bold sm:text-xl">{title}</h2><p className="text-xs text-slate-400 capitalize">{statusLabel(bill?.status || 'Draft')} · {estimateMode ? 'Estimate' : 'Bill'} · Kavach</p></div>
-        <div className="flex items-center gap-2"><button type="button" onClick={() => setTab('customize')} aria-pressed={tab === 'customize'} className={`document-tab${tab === 'customize' ? ' document-tab--active' : ''}`}>Customize</button><button type="button" onClick={preview} disabled={busy} aria-pressed={tab === 'preview'} className={`document-tab${tab === 'preview' ? ' document-tab--active' : ''}`}><Eye size={15} /> Preview</button><button type="button" onClick={() => navigate('/admin/bills')} className="admin-secondary !p-2" aria-label="Close document editor"><X size={18} /></button></div>
+        <div className="flex items-center gap-2"><button type="button" onClick={() => setTab('customize')} aria-pressed={tab === 'customize'} className={`document-tab${tab === 'customize' ? ' document-tab--active' : ''}`}>Customize</button><button type="button" onClick={preview} disabled={busy} aria-pressed={tab === 'preview'} className={`document-tab${tab === 'preview' ? ' document-tab--active' : ''}`}><Eye size={15} /> Preview</button><button type="button" onClick={() => navigate(basePath)} className="admin-secondary !p-2" aria-label="Close document editor"><X size={18} /></button></div>
       </header>
       {message && <p className="mx-4 mt-3 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400 sm:mx-6">{message}</p>}
       {error && <p className="mx-4 mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-400 sm:mx-6" role="alert">{error}</p>}
       {loading ? <div className="flex-1 p-6 text-slate-400">Loading document...</div> : id && !bill ? <div className="flex-1 p-6 text-rose-400">{error || 'Document not found'}</div> : <>
         <div className={tab === 'customize' ? 'min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6' : 'hidden'}>
           <form id="document-form" onSubmit={save} className="space-y-3">
-            <section className="border-b border-kavach-border/70 px-1 pb-4"><h3 className="mb-3 font-bold">Document details</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><AdminSelect label="Document type" value={form.estimate.type} disabled={locked} options={[{ value: 'estimate', label: 'Estimate' }, { value: 'invoice', label: 'Bill / invoice' }]} onChange={(value) => setEstimate('type', value)} />{estimateMode && <Field label="Estimate number" value={form.estimate.number} onChange={(value) => setEstimate('number', value)} disabled={locked} placeholder="Assigned on save" />}<Field label={estimateMode ? 'Estimate date' : 'Issue date'} type="date" value={form.issueDate} onChange={(value) => setForm((current) => ({ ...current, issueDate: value }))} disabled={locked} />{!estimateMode && <Field label="Due date" type="date" value={form.dueDate} onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))} disabled={locked} />}</div></section>
+            <section className="border-b border-kavach-border/70 px-1 pb-4"><h3 className="mb-3 font-bold">Document details</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{estimateMode && <Field label="Estimate number" value={form.estimate.number} onChange={(value) => setEstimate('number', value)} disabled={locked} placeholder="Assigned on save" />}<Field label={estimateMode ? 'Estimate date' : 'Issue date'} type="date" value={form.issueDate} onChange={(value) => setForm((current) => ({ ...current, issueDate: value }))} disabled={locked} />{!estimateMode && <Field label="Due date" type="date" value={form.dueDate} onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))} disabled={locked} />}</div></section>
             <section className="border-b border-kavach-border/70 px-1 pb-4"><h3 className="mb-3 font-bold">{estimateMode ? 'Estimate for' : 'Customer details'}</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_0.8fr_1.4fr]"><Field label="Customer name" value={form.customer.name} onChange={(value) => setCustomer('name', value)} disabled={locked} required /><Field label="Contact number" value={form.customer.phone} onChange={(value) => setCustomer('phone', value)} disabled={locked} /><Field label="Customer address" value={form.customer.address} onChange={(value) => setCustomer('address', value)} disabled={locked} /></div></section>
             <section className="border-b border-kavach-border/70 px-1 pb-4"><div className="mb-3 flex items-center justify-between gap-3"><h3 className="font-bold">{estimateMode ? 'Estimate items' : 'Bill items'}</h3>{!locked && <button type="button" className="admin-secondary" onClick={() => setForm((current) => ({ ...current, items: [...current.items, blankItem()] }))}><Plus size={15} /> Add item</button>}</div>{compactItems ? <div className="space-y-3">{form.items.map((item, index) => <ItemCard key={index} item={item} index={index} onChange={(key, value) => setItem(index, key, value)} onRemove={() => setForm((current) => ({ ...current, items: current.items.filter((_, i) => i !== index) }))} locked={locked} canRemove={form.items.length > 1} />)}</div> : <div className="overflow-x-auto"><table className="w-full min-w-[870px] table-fixed text-left text-xs"><colgroup><col className="w-[31%]" /><col className="w-[14%]" /><col className="w-[11%]" /><col className="w-[11%]" /><col className="w-[13%]" /><col className="w-[14%]" /><col className="w-[6%]" /></colgroup><thead><tr className="border-b border-kavach-border text-slate-400"><th className="pb-2 font-semibold">Item name</th><th className="pb-2 font-semibold">Code</th><th className="pb-2 font-semibold">Quantity</th><th className="pb-2 font-semibold">Unit</th><th className="pb-2 font-semibold">Price / unit</th><th className="pb-2 text-right font-semibold">Amount</th><th /></tr></thead><tbody>{form.items.map((item, index) => <tr key={index} className="border-b border-kavach-border/60 last:border-0"><td className="py-2 pr-2"><input aria-label={`Item ${index + 1} name`} className="admin-input !px-2 !py-2" value={item.description} onChange={(event) => setItem(index, 'description', event.target.value)} disabled={locked} required /></td><td className="py-2 pr-2"><input aria-label={`Item ${index + 1} code`} className="admin-input !px-2 !py-2" value={item.itemCode} onChange={(event) => setItem(index, 'itemCode', event.target.value)} disabled={locked} /></td><td className="py-2 pr-2"><input aria-label={`Item ${index + 1} quantity`} className="admin-input !px-2 !py-2" type="number" step="any" min="0.01" value={item.quantity} onChange={(event) => setItem(index, 'quantity', event.target.value)} disabled={locked} required /></td><td className="py-2 pr-2"><input aria-label={`Item ${index + 1} unit`} className="admin-input !px-2 !py-2" value={item.unit} onChange={(event) => setItem(index, 'unit', event.target.value)} disabled={locked} required /></td><td className="py-2 pr-2"><input aria-label={`Item ${index + 1} price per unit`} className="admin-input !px-2 !py-2" type="number" step="any" min="0" value={item.unitPrice} onChange={(event) => setItem(index, 'unitPrice', event.target.value)} disabled={locked} required /></td><td className="py-2 text-right font-semibold">{money(Number(item.quantity || 0) * Number(item.unitPrice || 0))}</td><td className="py-2 text-right">{!locked && form.items.length > 1 && <button type="button" className="p-2 text-rose-400" onClick={() => setForm((current) => ({ ...current, items: current.items.filter((_, i) => i !== index) }))} aria-label={`Remove item ${index + 1}`}><Trash size={16} /></button>}</td></tr>)}</tbody></table></div>}</section>
             <section className="border-b border-kavach-border/70 px-1 pb-4"><h3 className="mb-3 font-bold">{estimateMode ? 'Estimate text' : 'Bill notes'}</h3>{estimateMode ? <div className="grid gap-3 md:grid-cols-2"><Field label="Amount in words (optional override)" value={form.estimate.amountWords} onChange={(value) => setEstimate('amountWords', value)} disabled={locked} placeholder="Generated automatically if blank" /><Field label="Description" value={form.estimate.description} onChange={(value) => setEstimate('description', value)} disabled={locked} /><Field label="Payment terms" rows={2} value={form.estimate.paymentTerms} onChange={(value) => setEstimate('paymentTerms', value)} disabled={locked} /><Field label="Terms and conditions" rows={2} value={form.estimate.terms} onChange={(value) => setEstimate('terms', value)} disabled={locked} /></div> : <Field label="Notes / terms" rows={2} value={form.notes} onChange={(value) => setForm((current) => ({ ...current, notes: value }))} disabled={locked} />}</section>
@@ -281,7 +282,7 @@ function DocumentEditor({ id, leadId, newType }) {
           </form>
         </div>
         {tab === 'preview' && <div className="flex min-h-0 flex-1 flex-col bg-[#222731]"><div className="flex flex-wrap items-center justify-between gap-2 border-b border-kavach-border px-4 py-2 text-xs sm:px-6"><span className="text-slate-300">Preview of the current fields</span><div className="flex gap-3"><a className="font-semibold text-kavach-orange" href={previewUrl} target="_blank" rel="noopener noreferrer">Open PDF</a><a className="font-semibold text-kavach-orange" href={previewUrl} download={`${estimateMode ? 'estimate' : 'bill'}-preview.pdf`}>Download PDF</a></div></div><DocumentPreview form={form} totals={totals} business={business} /></div>}
-        {tab === 'customize' && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-kavach-border bg-kavach-dark px-4 py-3 sm:px-6"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">{!estimateMode && <span className="text-slate-400">Subtotal <strong className="ml-1 text-white">{money(totals.subtotal)}</strong></span>}<label className="flex items-center gap-2 text-slate-400">Discount <input aria-label="Discount in rupees" className="admin-input !w-24 !px-2 !py-1" type="number" min="0" step="any" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} disabled={locked} /></label><strong className="text-sm text-kavach-orange">Total {money(totals.total)}</strong></div><div className="flex flex-wrap items-center gap-2">{id && !bill?.draft_data && <a className="admin-secondary" href={`/api/admin/bills/${id}/pdf`} target="_blank" rel="noopener noreferrer"><FilePdf size={15} /> Saved PDF</a>}{estimateMode && id && bill?.status !== 'void' && (bill?.converted_bill_id ? <Link to={`/admin/bills/${bill?.converted_bill_id}`} className="admin-secondary"><Receipt size={15} /> Open bill</Link> : <button type="button" onClick={convertToBill} disabled={busy || dirty || Boolean(bill?.draft_data)} title={bill?.draft_data ? 'Complete and save the estimate before converting' : dirty ? 'Save the estimate before converting' : ''} className="admin-secondary"><ArrowsClockwise size={15} /> Convert to bill</button>)}{bill?.status === 'draft' && <button type="button" onClick={() => action('issue')} disabled={busy || dirty || Boolean(bill?.draft_data)} title={bill?.draft_data ? 'Complete and save the draft before issuing' : dirty ? 'Save the draft before issuing' : ''} className="admin-secondary">Issue {estimateMode ? 'estimate' : 'bill'}</button>}{bill?.status === 'issued' && <><button type="button" onClick={() => action('paid')} disabled={busy} className="admin-secondary"><CheckCircle size={15} /> Mark paid</button><button type="button" onClick={() => { setError(''); setConfirmCancel(true) }} disabled={busy} className="admin-secondary text-rose-400"><Prohibit size={15} /> Cancel {estimateMode ? 'estimate' : 'bill'}</button></>}{!locked && <button type="submit" form="document-form" formNoValidate data-save-progress="true" disabled={busy} className="admin-secondary">Save for later</button>}{!locked && <button type="submit" form="document-form" disabled={busy} className="btn-primary rounded-lg text-xs">{busy ? 'Working...' : id ? 'Save draft' : `Create ${estimateMode ? 'estimate' : 'bill'} draft`}</button>}</div></footer>}
+        {tab === 'customize' && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-kavach-border bg-kavach-dark px-4 py-3 sm:px-6"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">{!estimateMode && <span className="text-slate-400">Subtotal <strong className="ml-1 text-white">{money(totals.subtotal)}</strong></span>}<label className="flex items-center gap-2 text-slate-400">Discount <input aria-label="Discount in rupees" className="admin-input !w-24 !px-2 !py-1" type="number" min="0" step="any" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} disabled={locked} /></label><strong className="text-sm text-kavach-orange">Total {money(totals.total)}</strong></div><div className="flex flex-wrap items-center gap-2">{id && !bill?.draft_data && <a className="admin-secondary" href={`${apiPath}/${id}/pdf`} target="_blank" rel="noopener noreferrer"><FilePdf size={15} /> Saved PDF</a>}{estimateMode && id && bill?.status !== 'void' && (bill?.converted_bill_id ? <Link to={`/admin/bills/${bill?.converted_bill_id}`} className="admin-secondary"><Receipt size={15} /> Open bill</Link> : <button type="button" onClick={convertToBill} disabled={busy || dirty || Boolean(bill?.draft_data)} title={bill?.draft_data ? 'Complete and save the estimate before converting' : dirty ? 'Save the estimate before converting' : ''} className="admin-secondary"><ArrowsClockwise size={15} /> Convert to bill</button>)}{bill?.status === 'draft' && <button type="button" onClick={() => action('issue')} disabled={busy || dirty || Boolean(bill?.draft_data)} title={bill?.draft_data ? 'Complete and save the draft before issuing' : dirty ? 'Save the draft before issuing' : ''} className="admin-secondary">Issue {estimateMode ? 'estimate' : 'bill'}</button>}{bill?.status === 'issued' && <>{!estimateMode && <button type="button" onClick={() => action('paid')} disabled={busy} className="admin-secondary"><CheckCircle size={15} /> Mark paid</button>}<button type="button" onClick={() => { setError(''); setConfirmCancel(true) }} disabled={busy} className="admin-secondary text-rose-400"><Prohibit size={15} /> Cancel {estimateMode ? 'estimate' : 'bill'}</button></>}{!locked && <button type="submit" form="document-form" formNoValidate data-save-progress="true" disabled={busy} className="admin-secondary">Save for later</button>}{!locked && <button type="submit" form="document-form" disabled={busy} className="btn-primary rounded-lg text-xs">{busy ? 'Working...' : id ? 'Save draft' : `Create ${estimateMode ? 'estimate' : 'bill'} draft`}</button>}</div></footer>}
       </>}
     </section>
     {confirmCancel && <ConfirmDialog
@@ -297,12 +298,14 @@ function DocumentEditor({ id, leadId, newType }) {
   </div>
 }
 
-export default function BillsAndEstimates() {
+export default function BillsAndEstimates({ kind }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
-  const newType = params.get('new') === 'invoice' ? 'invoice' : 'estimate'
+  const newType = kind === 'estimate' ? 'estimate' : 'invoice'
+  const basePath = kind === 'estimate' ? '/admin/estimates' : '/admin/bills'
+  const apiPath = kind === 'estimate' ? '/api/admin/estimates' : '/api/admin/bills'
   const leadId = params.get('lead')
   const [documents, setDocuments] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
@@ -312,9 +315,13 @@ export default function BillsAndEstimates() {
   const [error, setError] = useState('')
   useEffect(() => {
     let active = true
-    api('/api/admin/bills').then((data) => { if (active) setDocuments(data) }).catch((err) => { if (active) setError(err.message) })
+    setDocuments(null)
+    setError('')
+    setPendingDelete(null)
+    setDeleteError('')
+    api(apiPath).then((data) => { if (active) setDocuments(data) }).catch((err) => { if (active) setError(err.message) })
     return () => { active = false }
-  }, [id, leadId, newType])
+  }, [id, leadId, apiPath])
   async function deleteDocument() {
     if (!pendingDelete) return
     const document = pendingDelete
@@ -322,50 +329,48 @@ export default function BillsAndEstimates() {
     setError('')
     setDeleteError('')
     try {
-      await api(`/api/admin/bills/${document.id}`, { method: 'DELETE' })
+      await api(`${apiPath}/${document.id}`, { method: 'DELETE' })
       setDocuments((current) => current?.filter((item) => item.id !== document.id) ?? current)
       setPendingDelete(null)
-      if (String(id) === String(document.id)) navigate('/admin/bills')
+      if (String(id) === String(document.id)) navigate(basePath)
     } catch (err) { setDeleteError(err.message) } finally { setDeletingId(null) }
   }
   async function convertEstimate(document) {
     setConvertingId(document.id)
     setError('')
     try {
-      const converted = await api(`/api/admin/bills/${document.id}/convert`, { method: 'POST' })
+      const converted = await api(`/api/admin/estimates/${document.id}/convert`, { method: 'POST' })
       navigate(`/admin/bills/${converted.id}`)
     } catch (err) { setError(err.message) } finally { setConvertingId(null) }
   }
+  if (kind === 'bill' && params.get('new') === 'estimate') return <Navigate to="/admin/estimates?new=1" replace />
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-kavach-orange text-xs font-semibold uppercase tracking-widest">Documents</p>
-          <p className="text-sm text-slate-400 mt-1">Create estimates and manage customer bills.</p>
+          <p className="text-kavach-orange text-xs font-semibold uppercase tracking-widest">{kind === 'estimate' ? 'Estimates' : 'Bills'}</p>
+          <p className="text-sm text-slate-400 mt-1">{kind === 'estimate' ? 'Create estimates and convert them to bills.' : 'Create and manage customer bills.'}</p>
         </div>
         <div className="flex gap-2">
-          <Link to="/admin/bills?new=estimate" className="btn-primary rounded-xl text-xs inline-flex items-center gap-2"><Plus size={16} /> New estimate</Link>
-          <Link to="/admin/bills?new=invoice" className="admin-secondary"><Plus size={16} /> New bill</Link>
+          <Link to={`${basePath}?new=1`} className="btn-primary rounded-xl text-xs inline-flex items-center gap-2"><Plus size={16} /> New {kind}</Link>
         </div>
       </div>
       {error && <p className="text-rose-400 text-sm" role="alert">{error}</p>}
       {location.state?.draftSaved && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">Draft saved. Open it from this list whenever you are ready to continue.</p>}
       <div className="admin-card overflow-hidden">
         <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_6rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
-          <div className="grid grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] gap-3 px-5">
-            <span>Document</span><span>Customer</span><span>Type</span><span>Status</span><span className="text-right">Total</span>
+          <div className="grid grid-cols-[1.2fr_1.2fr_0.7fr_0.6fr] gap-3 px-5">
+            <span>{kind === 'estimate' ? 'Estimate' : 'Bill'}</span><span>Customer</span><span>Status</span><span className="text-right">Total</span>
           </div>
           <span className="text-center">Action</span>
         </div>
         {documents?.length ? documents.map((document) => {
-          const isEstimate = document.estimate?.type === 'estimate'
-          const kind = isEstimate ? 'estimate' : 'bill'
+          const isEstimate = kind === 'estimate'
           const number = isEstimate ? (document.estimate.number || `Estimate #${document.id}`) : (document.bill_number || `Draft #${document.id}`)
           return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_6rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
-            <Link to={`/admin/bills/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm sm:grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_0.6fr] sm:gap-3">
+            <Link to={`${basePath}/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm sm:grid-cols-[1.2fr_1.2fr_0.7fr_0.6fr] sm:gap-3">
               <strong className="truncate">{number}</strong>
               <span className="truncate text-slate-300">{document.customer?.name || 'Customer not added'}</span>
-              <span className="text-slate-400 capitalize">{isEstimate ? 'Estimate' : 'Bill'}</span>
               <span className="text-kavach-orange capitalize">{statusLabel(document.status)}</span>
               <strong className="sm:text-right">{money(document.total)}</strong>
             </Link>
@@ -378,18 +383,18 @@ export default function BillsAndEstimates() {
               </button>
             </div>
           </div>
-        }) : <p className="p-8 text-sm text-slate-400">{documents ? 'No documents yet. Create an estimate to get started.' : 'Loading documents...'}</p>}
+        }) : <p className="p-8 text-sm text-slate-400">{documents ? `No ${kind}s yet. Create one to get started.` : 'Loading documents...'}</p>}
       </div>
       {pendingDelete && <ConfirmDialog
-        title={`Delete ${pendingDelete.estimate?.type === 'estimate' ? (pendingDelete.estimate.number || `estimate #${pendingDelete.id}`) : (pendingDelete.bill_number || `bill #${pendingDelete.id}`)}?`}
+        title={`Delete ${kind === 'estimate' ? (pendingDelete.estimate.number || `estimate #${pendingDelete.id}`) : (pendingDelete.bill_number || `bill #${pendingDelete.id}`)}?`}
         message="It will disappear from this list and cannot be opened here afterward."
-        confirmLabel={`Delete ${pendingDelete.estimate?.type === 'estimate' ? 'estimate' : 'bill'}`}
+        confirmLabel={`Delete ${kind}`}
         busy={deletingId === pendingDelete.id}
         error={deleteError}
         onCancel={() => setPendingDelete(null)}
         onConfirm={deleteDocument}
       />}
-      {(id || leadId || params.has('new')) && <DocumentEditor key={id || (leadId ? `lead-${leadId}` : `new-${newType}`)} id={id} leadId={leadId} newType={newType} />}
+      {(id || leadId || params.has('new')) && <DocumentEditor key={`${kind}-${id || (leadId ? `lead-${leadId}` : 'new')}`} id={id} leadId={leadId} newType={newType} />}
     </div>
   )
 }
