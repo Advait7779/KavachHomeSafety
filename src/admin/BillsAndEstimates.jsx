@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowsClockwise, CheckCircle, CloudArrowUp, Eye, FilePdf, Plus, Prohibit, Receipt, Trash, X } from '@phosphor-icons/react'
+import { ArrowsClockwise, CheckCircle, CloudArrowUp, Eye, FilePdf, MagnifyingGlass, Plus, Prohibit, Receipt, Trash, X } from '@phosphor-icons/react'
 import { amountInWords, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
 import { useSite } from '../site/SiteContext'
 import { api, apiBlob } from './api'
@@ -319,15 +319,25 @@ export default function BillsAndEstimates({ kind }) {
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  useEffect(() => {
+    setSearch('')
+    setSearchQuery('')
+  }, [kind])
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(search.trim()), 250)
+    return () => clearTimeout(timer)
+  }, [search])
   useEffect(() => {
     let active = true
     setDocuments(null)
     setError('')
     setPendingDelete(null)
     setDeleteError('')
-    api(apiPath).then((data) => { if (active) setDocuments(data) }).catch((err) => { if (active) setError(err.message) })
+    api(`${apiPath}?search=${encodeURIComponent(searchQuery)}`).then((data) => { if (active) setDocuments(data) }).catch((err) => { if (active) setError(err.message) })
     return () => { active = false }
-  }, [id, leadId, apiPath])
+  }, [id, leadId, apiPath, searchQuery])
   async function deleteDocument() {
     if (!pendingDelete) return
     const document = pendingDelete
@@ -361,6 +371,11 @@ export default function BillsAndEstimates({ kind }) {
           <Link to={`${basePath}?new=1`} className="btn-primary rounded-xl text-xs inline-flex items-center gap-2"><Plus size={16} /> New {kind}</Link>
         </div>
       </div>
+      <div className="relative w-full sm:max-w-sm">
+        <MagnifyingGlass size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input type="text" inputMode="search" className="admin-input !pl-10 !pr-10" value={search} onChange={(event) => setSearch(event.target.value)} aria-label={`Search ${kind}s by customer name`} placeholder="Search customer name" />
+        {search && <button type="button" onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-white"><X size={16} /></button>}
+      </div>
       {error && <p className="text-rose-400 text-sm" role="alert">{error}</p>}
       {location.state?.draftSaved && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">Draft saved. Open it from this list whenever you are ready to continue.</p>}
       <div className="admin-card overflow-hidden">
@@ -389,7 +404,7 @@ export default function BillsAndEstimates({ kind }) {
               </button>
             </div>
           </div>
-        }) : <p className="p-8 text-sm text-slate-400">{documents ? `No ${kind}s yet. Create one to get started.` : 'Loading documents...'}</p>}
+        }) : <p className="p-8 text-sm text-slate-400">{documents ? (searchQuery ? 'No customers match this search.' : `No ${kind}s yet. Create one to get started.`) : error ? `Unable to load ${kind}s.` : 'Loading documents...'}</p>}
       </div>
       {pendingDelete && <ConfirmDialog
         title={`Delete ${kind === 'estimate' ? (pendingDelete.estimate.number || `estimate #${pendingDelete.id}`) : (pendingDelete.bill_number || `bill #${pendingDelete.id}`)}?`}

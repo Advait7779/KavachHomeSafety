@@ -309,7 +309,8 @@ for (const kind of ['estimate', 'bill']) {
   const label = kind === 'estimate' ? 'Estimate' : 'Bill'
   const base = kind === 'estimate' ? '/api/admin/estimates' : '/api/admin/bills'
 
-  app.get(base, asyncRoute(async (_req, res) => {
+  app.get(base, asyncRoute(async (req, res) => {
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 160) : ''
     const convertedJoin = kind === 'estimate'
       ? 'LEFT JOIN bills converted ON converted.source_estimate_id = d.id AND converted.deleted_at IS NULL'
       : ''
@@ -318,7 +319,8 @@ for (const kind of ['estimate', 'bill']) {
       ${kind === 'bill' ? 'd.source_estimate_id' : 'NULL::bigint AS source_estimate_id'}, ${convertedColumn} AS converted_bill_id,
       (d.draft_data IS NOT NULL) AS has_unfinished_fields, d.status, d.customer, d.estimate,
       d.issue_date, d.due_date, d.total, d.created_at FROM ${store.table} d ${convertedJoin}
-      WHERE d.deleted_at IS NULL ORDER BY d.created_at DESC LIMIT 100`)
+      WHERE d.deleted_at IS NULL AND ($1 = '' OR strpos(lower(coalesce(d.customer->>'name', '')), lower($1)) > 0)
+      ORDER BY d.created_at DESC LIMIT 100`, [search])
     res.json(rows)
   }))
 
