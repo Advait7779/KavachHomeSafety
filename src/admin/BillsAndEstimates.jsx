@@ -323,6 +323,7 @@ export default function BillsAndEstimates({ kind }) {
   const [deletingId, setDeletingId] = useState(null)
   const [convertingId, setConvertingId] = useState(null)
   const [sharingId, setSharingId] = useState(null)
+  const [shareNotice, setShareNotice] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [error, setError] = useState('')
@@ -331,6 +332,7 @@ export default function BillsAndEstimates({ kind }) {
   useEffect(() => {
     setSearch('')
     setSearchQuery('')
+    setShareNotice('')
   }, [kind])
   useEffect(() => {
     const timer = setTimeout(() => setSearchQuery(search.trim()), 250)
@@ -371,13 +373,24 @@ export default function BillsAndEstimates({ kind }) {
     if (shareWindow) shareWindow.opener = null
     setSharingId(document.id)
     setError('')
+    setShareNotice('')
     try {
-      const { url } = await api(`${apiPath}/${document.id}/share`, { method: 'POST' })
+      const pdf = await apiBlob(`${apiPath}/${document.id}/pdf`)
       const documentNumber = kind === 'estimate' ? document.estimate.number : document.bill_number
-      const message = `Hello ${document.customer.name}, here is your ${kind}${documentNumber ? ` ${documentNumber}` : ''} PDF: ${url}`
+      const filename = `${kind}-${String(documentNumber || `draft-${document.id}`).replace(/[^a-z0-9_-]/gi, '-')}.pdf`
+      const pdfUrl = URL.createObjectURL(pdf)
+      const download = window.document.createElement('a')
+      download.href = pdfUrl
+      download.download = filename
+      window.document.body.append(download)
+      download.click()
+      download.remove()
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000)
+      const message = `Hello ${document.customer.name}, here is your ${kind}${documentNumber ? ` ${documentNumber}` : ''}.`
       const whatsappUrl = `https://wa.me/${number}?text=${encodeURIComponent(message)}`
       if (shareWindow && !shareWindow.closed) shareWindow.location.replace(whatsappUrl)
       else window.location.assign(whatsappUrl)
+      setShareNotice(`${filename} downloaded. Attach it in the WhatsApp chat before sending.`)
     } catch (err) {
       shareWindow?.close()
       setError(err.message)
@@ -401,6 +414,7 @@ export default function BillsAndEstimates({ kind }) {
         {search && <button type="button" onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-white"><X size={16} /></button>}
       </div>
       {error && <p className="text-rose-400 text-sm" role="alert">{error}</p>}
+      {shareNotice && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">{shareNotice}</p>}
       {location.state?.draftSaved && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">Draft saved. Open it from this list whenever you are ready to continue.</p>}
       <div className="admin-card overflow-hidden">
         <div className="hidden lg:grid grid-cols-[minmax(0,1fr)_8rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
@@ -426,7 +440,7 @@ export default function BillsAndEstimates({ kind }) {
               {isEstimate && document.status !== 'void' && (document.converted_bill_id
                 ? <Link to={`/admin/bills/${document.converted_bill_id}`} aria-label={`Open bill converted from ${number}`} title="Open converted bill" className="rounded-lg p-2 text-kavach-orange hover:bg-kavach-orange/10"><Receipt size={18} /></Link>
                 : <button type="button" onClick={() => convertEstimate(document)} disabled={convertingId === document.id || document.has_unfinished_fields} aria-label={`Convert ${number} to bill`} title={document.has_unfinished_fields ? 'Complete and save the estimate first' : 'Convert to bill'} className="rounded-lg p-2 text-kavach-orange hover:bg-kavach-orange/10 disabled:opacity-50"><ArrowsClockwise size={18} /></button>)}
-              <button type="button" onClick={() => shareDocument(document, customerNumber)} disabled={Boolean(shareDisabledReason) || sharingId === document.id} aria-label={`Share ${kind} ${number} on WhatsApp`} title={shareDisabledReason || `Share PDF with ${document.customer.phone} on WhatsApp`} className="rounded-lg p-2 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-40"><WhatsappLogo size={18} /></button>
+              <button type="button" onClick={() => shareDocument(document, customerNumber)} disabled={Boolean(shareDisabledReason) || sharingId === document.id} aria-label={`Download ${kind} ${number} PDF and open WhatsApp`} title={shareDisabledReason || `Download PDF and open WhatsApp chat with ${document.customer.phone}`} className="rounded-lg p-2 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-40"><WhatsappLogo size={18} /></button>
               <button type="button" onClick={() => { setDeleteError(''); setPendingDelete(document) }} disabled={deletingId === document.id} aria-label={`Delete ${kind} ${number}`} title={`Delete ${kind}`} className="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50">
                 <Trash size={18} />
               </button>
