@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowsClockwise, CheckCircle, CloudArrowUp, Eye, FilePdf, MagnifyingGlass, Plus, Prohibit, Receipt, Trash, WhatsappLogo, X } from '@phosphor-icons/react'
+import { ArrowsClockwise, CheckCircle, CloudArrowUp, DownloadSimple, Eye, FilePdf, MagnifyingGlass, Plus, Prohibit, Receipt, Trash, X } from '@phosphor-icons/react'
 import { amountInWords, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
 import { useSite } from '../site/SiteContext'
 import { api, apiBlob } from './api'
@@ -8,13 +8,6 @@ import { api, apiBlob } from './api'
 const blankItem = () => ({ description: '', itemCode: '', quantity: 1, unit: 'sq ft', unitPrice: 0 })
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const statusLabel = (status) => status === 'void' ? 'Cancelled' : status
-const whatsappNumber = (phone) => {
-  const digits = String(phone || '').replace(/\D/g, '')
-  if (digits.length === 10) return `91${digits}`
-  if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`
-  return digits.length >= 11 && digits.length <= 15 ? digits : ''
-}
-
 function ConfirmDialog({ title, message, confirmLabel, onCancel, onConfirm, busy = false, error = '', icon: Icon = Trash }) {
   const dialogRef = useRef(null)
   const titleId = useId()
@@ -322,8 +315,8 @@ export default function BillsAndEstimates({ kind }) {
   const [documents, setDocuments] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [convertingId, setConvertingId] = useState(null)
-  const [sharingId, setSharingId] = useState(null)
-  const [shareNotice, setShareNotice] = useState('')
+  const [downloadingId, setDownloadingId] = useState(null)
+  const [downloadNotice, setDownloadNotice] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [error, setError] = useState('')
@@ -332,7 +325,7 @@ export default function BillsAndEstimates({ kind }) {
   useEffect(() => {
     setSearch('')
     setSearchQuery('')
-    setShareNotice('')
+    setDownloadNotice('')
   }, [kind])
   useEffect(() => {
     const timer = setTimeout(() => setSearchQuery(search.trim()), 250)
@@ -368,16 +361,14 @@ export default function BillsAndEstimates({ kind }) {
       navigate(`/admin/bills/${converted.id}`)
     } catch (err) { setError(err.message) } finally { setConvertingId(null) }
   }
-  async function shareDocument(document, number) {
-    const shareWindow = window.open('about:blank', '_blank')
-    if (shareWindow) shareWindow.opener = null
-    setSharingId(document.id)
+  async function downloadDocument(record) {
+    setDownloadingId(record.id)
     setError('')
-    setShareNotice('')
+    setDownloadNotice('')
     try {
-      const pdf = await apiBlob(`${apiPath}/${document.id}/pdf`)
-      const documentNumber = kind === 'estimate' ? document.estimate.number : document.bill_number
-      const filename = `${kind}-${String(documentNumber || `draft-${document.id}`).replace(/[^a-z0-9_-]/gi, '-')}.pdf`
+      const pdf = await apiBlob(`${apiPath}/${record.id}/pdf`)
+      const documentNumber = kind === 'estimate' ? record.estimate.number : record.bill_number
+      const filename = `${kind}-${String(documentNumber || `draft-${record.id}`).replace(/[^a-z0-9_-]/gi, '-')}.pdf`
       const pdfUrl = URL.createObjectURL(pdf)
       const download = window.document.createElement('a')
       download.href = pdfUrl
@@ -386,15 +377,10 @@ export default function BillsAndEstimates({ kind }) {
       download.click()
       download.remove()
       setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000)
-      const message = `Hello ${document.customer.name}, here is your ${kind}${documentNumber ? ` ${documentNumber}` : ''}.`
-      const whatsappUrl = `https://wa.me/${number}?text=${encodeURIComponent(message)}`
-      if (shareWindow && !shareWindow.closed) shareWindow.location.replace(whatsappUrl)
-      else window.location.assign(whatsappUrl)
-      setShareNotice(`${filename} downloaded. Attach it in the WhatsApp chat before sending.`)
+      setDownloadNotice(`${filename} downloaded.`)
     } catch (err) {
-      shareWindow?.close()
       setError(err.message)
-    } finally { setSharingId(null) }
+    } finally { setDownloadingId(null) }
   }
   if (kind === 'bill' && params.get('new') === 'estimate') return <Navigate to="/admin/estimates?new=1" replace />
   return (
@@ -414,7 +400,7 @@ export default function BillsAndEstimates({ kind }) {
         {search && <button type="button" onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-white"><X size={16} /></button>}
       </div>
       {error && <p className="text-rose-400 text-sm" role="alert">{error}</p>}
-      {shareNotice && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">{shareNotice}</p>}
+      {downloadNotice && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">{downloadNotice}</p>}
       {location.state?.draftSaved && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">Draft saved. Open it from this list whenever you are ready to continue.</p>}
       <div className="admin-card overflow-hidden">
         <div className="hidden lg:grid grid-cols-[minmax(0,1fr)_8rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
@@ -426,8 +412,7 @@ export default function BillsAndEstimates({ kind }) {
         {documents?.length ? documents.map((document) => {
           const isEstimate = kind === 'estimate'
           const number = isEstimate ? (document.estimate.number || `Estimate #${document.id}`) : (document.bill_number || `Draft #${document.id}`)
-          const customerNumber = whatsappNumber(document.customer?.phone)
-          const shareDisabledReason = document.status === 'void' ? 'Cancelled documents cannot be shared' : document.has_unfinished_fields ? `Complete and save this ${kind} before sharing` : !customerNumber ? 'Add a valid customer contact number first' : ''
+          const downloadDisabledReason = document.has_unfinished_fields ? `Complete and save this ${kind} before downloading` : ''
           return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
             <Link to={`${basePath}/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm lg:grid-cols-[1.05fr_1.05fr_1fr_0.65fr_0.65fr] lg:gap-3">
               <strong className="truncate">{number}</strong>
@@ -440,7 +425,7 @@ export default function BillsAndEstimates({ kind }) {
               {isEstimate && document.status !== 'void' && (document.converted_bill_id
                 ? <Link to={`/admin/bills/${document.converted_bill_id}`} aria-label={`Open bill converted from ${number}`} title="Open converted bill" className="rounded-lg p-2 text-kavach-orange hover:bg-kavach-orange/10"><Receipt size={18} /></Link>
                 : <button type="button" onClick={() => convertEstimate(document)} disabled={convertingId === document.id || document.has_unfinished_fields} aria-label={`Convert ${number} to bill`} title={document.has_unfinished_fields ? 'Complete and save the estimate first' : 'Convert to bill'} className="rounded-lg p-2 text-kavach-orange hover:bg-kavach-orange/10 disabled:opacity-50"><ArrowsClockwise size={18} /></button>)}
-              <button type="button" onClick={() => shareDocument(document, customerNumber)} disabled={Boolean(shareDisabledReason) || sharingId === document.id} aria-label={`Download ${kind} ${number} PDF and open WhatsApp`} title={shareDisabledReason || `Download PDF and open WhatsApp chat with ${document.customer.phone}`} className="rounded-lg p-2 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-40"><WhatsappLogo size={18} /></button>
+              <button type="button" onClick={() => downloadDocument(document)} disabled={Boolean(downloadDisabledReason) || downloadingId === document.id} aria-label={`Download ${kind} ${number} PDF`} title={downloadDisabledReason || `Download ${kind} PDF`} className="rounded-lg p-2 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-40"><DownloadSimple size={18} /></button>
               <button type="button" onClick={() => { setDeleteError(''); setPendingDelete(document) }} disabled={deletingId === document.id} aria-label={`Delete ${kind} ${number}`} title={`Delete ${kind}`} className="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50">
                 <Trash size={18} />
               </button>
