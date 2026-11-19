@@ -20,7 +20,7 @@ The enquiry form saves a lead before displaying a WhatsApp follow-up link. Admin
 
 The Estimates and Bills lists show the saved customer contact number and a PDF download action. Once a draft is complete and saved, click the download icon to save its PDF, then send the file manually. Incomplete drafts cannot be downloaded. The separate public PDF-link endpoint remains available for link-based sharing; its links expire after 30 days and local development links cannot be opened by customers on other devices.
 
-New bills use the same default terms as estimates. Converted bills carry the estimate terms into the bill. Bill PDFs show a Terms and conditions heading, one term per line, and a bold payment line; older promotional footer wording is replaced with these terms when the PDF is generated.
+Estimate terms stay on estimates. Bills show a bold "Thank you for choosing Kavach." footer; optional bill notes appear above it. Bills saved with the earlier estimate terms display the thank-you footer instead.
 
 Production HTML uses a Content Security Policy. Admin uploads are limited to 5 MB, 30 uploads per day per client IP, and JPG/PNG/WebP file signatures. Admin sessions expire after 12 hours or 2 hours of inactivity; changing the password revokes other sessions. Publishing and rolling back site content and changing lead status or password write basic audit events to the database. MFA and a full audit viewer remain future security enhancements.
 

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowsClockwise, CheckCircle, CloudArrowUp, DownloadSimple, Eye, FilePdf, MagnifyingGlass, Plus, Prohibit, Receipt, Trash, X } from '@phosphor-icons/react'
-import { amountInWords, billTermsText, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
+import { amountInWords, billExtraNotes, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
 import { useSite } from '../site/SiteContext'
 import { api, apiBlob } from './api'
 
@@ -36,7 +36,7 @@ function blankForm(business, type = 'estimate') {
     customer: { name: '', phone: '', address: '' },
     issueDate: new Date().toISOString().slice(0, 10),
     dueDate: '',
-    notes: type === 'invoice' ? billTermsText('', business) : '',
+    notes: '',
     estimate: { ...estimateDefaults(business), type },
     discount: 0,
     items: [blankItem()],
@@ -54,7 +54,7 @@ function toForm(bill) {
       customer: draft.customer,
       issueDate: draft.issueDate || '',
       dueDate: draft.dueDate || '',
-      notes: estimate.type === 'invoice' ? billTermsText(draft.notes, bill.business) : draft.notes || '',
+      notes: estimate.type === 'invoice' ? billExtraNotes(draft.notes, bill.business) : draft.notes || '',
       estimate,
       discount: draft.discount,
       items: draft.items.length ? draft.items : [blankItem()],
@@ -67,7 +67,7 @@ function toForm(bill) {
     customer: bill.customer,
     issueDate: bill.issue_date?.slice(0, 10) || '',
     dueDate: bill.due_date?.slice(0, 10) || '',
-    notes: estimate.type === 'invoice' ? billTermsText(bill.notes, bill.business) : bill.notes || '',
+    notes: estimate.type === 'invoice' ? billExtraNotes(bill.notes, bill.business) : bill.notes || '',
     estimate,
     discount: Number(bill.discount),
     items: bill.items.map((item) => ({
@@ -125,12 +125,6 @@ function EstimateTextSection({ label, value }) {
   </section>
 }
 
-function BillTerms({ text }) {
-  return <div>{String(text).split(/\r?\n/).map((line, index) =>
-    <p key={index} className={`whitespace-pre-wrap ${/^Thank you for choosing Kavach\.?$/i.test(line.trim()) ? 'font-bold' : ''}`}>{line || '\u00a0'}</p>,
-  )}</div>
-}
-
 function DocumentPreview({ form, totals, business }) {
   const containerRef = useRef(null)
   const [scale, setScale] = useState(1)
@@ -152,6 +146,7 @@ function DocumentPreview({ form, totals, business }) {
   const name = estimateMode ? company.name : fullCompanyName(business)
   const logo = estimateMode ? company.logo : business.logo
   const totalQuantity = form.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const extraBillNotes = billExtraNotes(form.notes, business)
   return <div ref={containerRef} className="min-h-0 flex-1 overflow-auto bg-slate-200 p-3 sm:p-6">
     <article className="mx-auto min-h-[860px] w-[760px] bg-white text-[#1a1e27] shadow-xl" style={{ zoom: scale }}>
       {estimateMode ? <div className="border-t-[7px] border-[#E8871E] px-8 pt-8"><div className="flex justify-between gap-6 border-b-2 border-[#E8871E] pb-5"><div className="space-y-1"><h2 className="text-xl font-bold">{name}</h2>{[company.address, company.website, company.iso && `ISO: ${company.iso}`, company.phone && `Phone: ${company.phone}`, company.email && `Email: ${company.email}`, company.gstin && `GSTIN: ${company.gstin}`, company.state && `State: ${company.state}`].filter(Boolean).map((line) => <p key={line} className="text-xs">{line}</p>)}</div>{logo && <img src={logo} alt="Company logo" className="h-20 w-20 shrink-0 object-contain" />}</div><h2 className="my-5 text-center text-xl font-extrabold">ESTIMATE</h2><div className="mb-6 grid grid-cols-2 gap-5 text-xs"><div><h3 className="mb-2 font-bold text-[#E8871E]">ESTIMATE FOR</h3><p className="font-bold">{form.customer.name || 'Customer name'}</p>{form.customer.phone && <p>Contact No.: {form.customer.phone}</p>}{form.customer.address && <p>{form.customer.address}</p>}</div><div className="text-right font-bold text-[#E8871E]">Date: {form.issueDate || 'Draft'}</div></div></div>
@@ -159,7 +154,7 @@ function DocumentPreview({ form, totals, business }) {
       <div className="px-8 pb-8"><table className="mt-5 w-full table-fixed text-xs"><thead><tr className="bg-[#1a1e27] text-white"><th className="w-[43%] px-2 py-2 text-left">{estimateMode ? 'Item name' : 'Description'}</th>{estimateMode && <th className="w-[13%] px-2 py-2 text-left">Code</th>}<th className="w-[14%] px-2 py-2 text-right">Qty</th><th className="w-[15%] px-2 py-2 text-right">Rate</th><th className="px-2 py-2 text-right">Amount</th></tr></thead><tbody>{form.items.map((item, index) => <tr key={index} className="border-b border-slate-200"><td className="px-2 py-3 font-semibold">{item.description || 'Item description'}</td>{estimateMode && <td className="px-2 py-3">{item.itemCode}</td>}<td className="px-2 py-3 text-right">{Number(item.quantity || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })} {item.unit}</td><td className="px-2 py-3 text-right">{money(item.unitPrice)}</td><td className="px-2 py-3 text-right">{money(Number(item.quantity || 0) * Number(item.unitPrice || 0))}</td></tr>)}</tbody></table>
         {estimateMode && <p className="border-b border-slate-500 px-2 py-2 text-xs font-bold">Total quantity: {totalQuantity.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>}
         <div className="mt-5 grid grid-cols-2 gap-6 text-xs"><div>{estimateMode && <><h3 className="font-bold">Estimate Amount In Words</h3><p className="mt-2">{form.estimate.amountWords || amountInWords(totals.total)}</p></>}</div><div className="space-y-2">{!estimateMode && <p className="flex justify-between border-b pb-1"><span>Subtotal</span><span>{money(totals.subtotal)}</span></p>}{!estimateMode && Number(form.discount) > 0 && <p className="flex justify-between border-b pb-1"><span>Discount</span><span>-{money(form.discount)}</span></p>}<p className="flex justify-between border-b pb-1 font-bold"><span>Total</span><span>{money(totals.total)}</span></p></div></div>
-        <div className="mt-6 space-y-4 text-xs">{estimateMode ? [['Description', form.estimate.description], ['Payment', form.estimate.paymentTerms], ['Terms and conditions', form.estimate.terms]].filter(([, value]) => value).map(([label, value]) => <EstimateTextSection key={label} label={label} value={value} />) : <>{(form.notes || business.billTerms) && <BillTerms text={form.notes || business.billTerms} />}{business.paymentDetails && <p className="whitespace-pre-wrap">Payment details: {business.paymentDetails}</p>}</>}</div>
+        <div className="mt-6 space-y-4 text-xs">{estimateMode ? [['Description', form.estimate.description], ['Payment', form.estimate.paymentTerms], ['Terms and conditions', form.estimate.terms]].filter(([, value]) => value).map(([label, value]) => <EstimateTextSection key={label} label={label} value={value} />) : <>{extraBillNotes && <p className="whitespace-pre-wrap">{extraBillNotes}</p>}<p className="font-bold">Thank you for choosing Kavach.</p>{business.paymentDetails && <p className="whitespace-pre-wrap">Payment details: {business.paymentDetails}</p>}</>}</div>
       </div>
     </article>
   </div>

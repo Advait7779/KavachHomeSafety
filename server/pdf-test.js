@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { PassThrough } from 'node:stream'
 import { streamBillPdf } from './pdf.js'
+import { billExtraNotes, defaultEstimateTerms } from '../shared/estimate.js'
+
+assert.equal(billExtraNotes(defaultEstimateTerms), '')
+assert.equal(billExtraNotes('Thank you for choosing Kavach.'), '')
+assert.equal(billExtraNotes('Customer requested morning installation.'), 'Customer requested morning installation.')
 
 async function render(items, notes = '') {
   const res = new PassThrough()
