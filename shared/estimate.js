@@ -43,13 +43,12 @@ export function estimateDefaults(business = {}) {
     description: '',
     paymentTerms: '',
     terms: defaultEstimateTerms,
-    amountWords: '',
   }
 }
 
 export function mergeEstimate(estimate = {}, business = {}) {
   const defaults = estimateDefaults(business)
-  const { bank: _bank, signatory: _signatory, ...visibleEstimate } = estimate
+  const { bank: _bank, signatory: _signatory, amountWords: _amountWords, ...visibleEstimate } = estimate
   return {
     ...defaults,
     ...visibleEstimate,

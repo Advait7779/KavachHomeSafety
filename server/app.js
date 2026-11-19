@@ -255,7 +255,6 @@ const estimateInput = z.object({
   description: estimateText(),
   paymentTerms: estimateText(),
   terms: estimateText(),
-  amountWords: estimateText(500),
 })
 
 const billInput = z.object({

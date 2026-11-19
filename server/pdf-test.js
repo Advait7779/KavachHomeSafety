@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import { PassThrough } from 'node:stream'
 import { streamBillPdf } from './pdf.js'
-import { billExtraNotes, defaultEstimateTerms } from '../shared/estimate.js'
+import { amountInWords, billExtraNotes, defaultEstimateTerms, mergeEstimate } from '../shared/estimate.js'
 
 assert.equal(billExtraNotes(defaultEstimateTerms), '')
 assert.equal(billExtraNotes('Thank you for choosing Kavach.'), '')
 assert.equal(billExtraNotes('Customer requested morning installation.'), 'Customer requested morning installation.')
+assert.equal(amountInWords(12000), 'Twelve Thousand Rupees Only')
+assert.equal(amountInWords(12000.5), 'Twelve Thousand Rupees and Fifty Paise Only')
+assert.equal('amountWords' in mergeEstimate({ amountWords: 'Outdated words' }), false)
 
 async function render(items, notes = '') {
   const res = new PassThrough()

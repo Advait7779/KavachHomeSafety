@@ -105,7 +105,7 @@ export async function streamEstimatePdf(res, bill) {
   doc.moveTo(left, y + 28).lineTo(right, y + 28).strokeColor(dark).lineWidth(1).stroke()
   y += 40
   const summaryY = y
-  const wordsText = estimate.amountWords || amountInWords(bill.total)
+  const wordsText = amountInWords(bill.total)
   doc.fillColor(dark).font(pdfFonts.bold).fontSize(9).text('Estimate Amount In Words', left, summaryY, { width:250 })
   doc.font(pdfFonts.regular).fontSize(9).text(wordsText, left, summaryY + 16, { width: 245 })
   const wordsHeight = doc.heightOfString(wordsText, { width: 245 }) + 16
