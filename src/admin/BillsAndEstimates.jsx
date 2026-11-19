@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowsClockwise, CheckCircle, CloudArrowUp, Eye, FilePdf, MagnifyingGlass, Plus, Prohibit, Receipt, Trash, X } from '@phosphor-icons/react'
+import { ArrowsClockwise, CheckCircle, CloudArrowUp, Eye, FilePdf, MagnifyingGlass, Plus, Prohibit, Receipt, Trash, WhatsappLogo, X } from '@phosphor-icons/react'
 import { amountInWords, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
 import { useSite } from '../site/SiteContext'
 import { api, apiBlob } from './api'
@@ -8,6 +8,12 @@ import { api, apiBlob } from './api'
 const blankItem = () => ({ description: '', itemCode: '', quantity: 1, unit: 'sq ft', unitPrice: 0 })
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const statusLabel = (status) => status === 'void' ? 'Cancelled' : status
+const whatsappNumber = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '')
+  if (digits.length === 10) return `91${digits}`
+  if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`
+  return digits.length >= 11 && digits.length <= 15 ? digits : ''
+}
 
 function ConfirmDialog({ title, message, confirmLabel, onCancel, onConfirm, busy = false, error = '', icon: Icon = Trash }) {
   const dialogRef = useRef(null)
@@ -316,6 +322,7 @@ export default function BillsAndEstimates({ kind }) {
   const [documents, setDocuments] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [convertingId, setConvertingId] = useState(null)
+  const [sharingId, setSharingId] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [error, setError] = useState('')
@@ -359,6 +366,23 @@ export default function BillsAndEstimates({ kind }) {
       navigate(`/admin/bills/${converted.id}`)
     } catch (err) { setError(err.message) } finally { setConvertingId(null) }
   }
+  async function shareDocument(document, number) {
+    const shareWindow = window.open('about:blank', '_blank')
+    if (shareWindow) shareWindow.opener = null
+    setSharingId(document.id)
+    setError('')
+    try {
+      const { url } = await api(`${apiPath}/${document.id}/share`, { method: 'POST' })
+      const documentNumber = kind === 'estimate' ? document.estimate.number : document.bill_number
+      const message = `Hello ${document.customer.name}, here is your ${kind}${documentNumber ? ` ${documentNumber}` : ''} PDF: ${url}`
+      const whatsappUrl = `https://wa.me/${number}?text=${encodeURIComponent(message)}`
+      if (shareWindow && !shareWindow.closed) shareWindow.location.replace(whatsappUrl)
+      else window.location.assign(whatsappUrl)
+    } catch (err) {
+      shareWindow?.close()
+      setError(err.message)
+    } finally { setSharingId(null) }
+  }
   if (kind === 'bill' && params.get('new') === 'estimate') return <Navigate to="/admin/estimates?new=1" replace />
   return (
     <div className="space-y-5">
@@ -379,26 +403,30 @@ export default function BillsAndEstimates({ kind }) {
       {error && <p className="text-rose-400 text-sm" role="alert">{error}</p>}
       {location.state?.draftSaved && <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">Draft saved. Open it from this list whenever you are ready to continue.</p>}
       <div className="admin-card overflow-hidden">
-        <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_6rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
-          <div className="grid grid-cols-[1.2fr_1.2fr_0.7fr_0.6fr] gap-3 px-5">
-            <span>{kind === 'estimate' ? 'Estimate' : 'Bill'}</span><span>Customer</span><span>Status</span><span className="text-right">Total</span>
+        <div className="hidden lg:grid grid-cols-[minmax(0,1fr)_8rem] items-center py-3 text-[11px] text-slate-500 uppercase tracking-widest border-b border-kavach-border">
+          <div className="grid grid-cols-[1.05fr_1.05fr_1fr_0.65fr_0.65fr] gap-3 px-5">
+            <span>{kind === 'estimate' ? 'Estimate' : 'Bill'}</span><span>Customer</span><span>Contact number</span><span>Status</span><span className="text-right">Total</span>
           </div>
           <span className="text-center">Action</span>
         </div>
         {documents?.length ? documents.map((document) => {
           const isEstimate = kind === 'estimate'
           const number = isEstimate ? (document.estimate.number || `Estimate #${document.id}`) : (document.bill_number || `Draft #${document.id}`)
-          return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_6rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
-            <Link to={`${basePath}/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm sm:grid-cols-[1.2fr_1.2fr_0.7fr_0.6fr] sm:gap-3">
+          const customerNumber = whatsappNumber(document.customer?.phone)
+          const shareDisabledReason = document.status === 'void' ? 'Cancelled documents cannot be shared' : document.status === 'draft' || document.has_unfinished_fields ? `Issue this ${kind} before sharing` : !customerNumber ? 'Add a valid customer contact number first' : ''
+          return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
+            <Link to={`${basePath}/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm lg:grid-cols-[1.05fr_1.05fr_1fr_0.65fr_0.65fr] lg:gap-3">
               <strong className="truncate">{number}</strong>
               <span className="truncate text-slate-300">{document.customer?.name || 'Customer not added'}</span>
+              <span className="truncate text-slate-300">{document.customer?.phone || 'No contact number'}</span>
               <span className="text-kavach-orange capitalize">{statusLabel(document.status)}</span>
-              <strong className="sm:text-right">{money(document.total)}</strong>
+              <strong className="lg:text-right">{money(document.total)}</strong>
             </Link>
             <div className="flex items-center justify-center gap-1">
               {isEstimate && document.status !== 'void' && (document.converted_bill_id
                 ? <Link to={`/admin/bills/${document.converted_bill_id}`} aria-label={`Open bill converted from ${number}`} title="Open converted bill" className="rounded-lg p-2 text-kavach-orange hover:bg-kavach-orange/10"><Receipt size={18} /></Link>
                 : <button type="button" onClick={() => convertEstimate(document)} disabled={convertingId === document.id || document.has_unfinished_fields} aria-label={`Convert ${number} to bill`} title={document.has_unfinished_fields ? 'Complete and save the estimate first' : 'Convert to bill'} className="rounded-lg p-2 text-kavach-orange hover:bg-kavach-orange/10 disabled:opacity-50"><ArrowsClockwise size={18} /></button>)}
+              <button type="button" onClick={() => shareDocument(document, customerNumber)} disabled={Boolean(shareDisabledReason) || sharingId === document.id} aria-label={`Share ${kind} ${number} on WhatsApp`} title={shareDisabledReason || `Share PDF with ${document.customer.phone} on WhatsApp`} className="rounded-lg p-2 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-40"><WhatsappLogo size={18} /></button>
               <button type="button" onClick={() => { setDeleteError(''); setPendingDelete(document) }} disabled={deletingId === document.id} aria-label={`Delete ${kind} ${number}`} title={`Delete ${kind}`} className="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50">
                 <Trash size={18} />
               </button>

@@ -158,6 +158,15 @@ CREATE TABLE IF NOT EXISTS estimate_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS document_share_links (
+  token_hash TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('estimate', 'bill')),
+  document_id BIGINT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS document_share_links_document_idx ON document_share_links (kind, document_id);
+
 -- Move documents created before Estimates and Bills had separate storage.
 INSERT INTO estimates (id, lead_id, status, customer, business, estimate, draft_data, issue_date, due_date, notes, subtotal, discount, tax_total, total, deleted_at, created_at, updated_at)
 SELECT id, lead_id, status, customer, business, estimate, draft_data, issue_date, due_date, notes, subtotal, discount, tax_total, total, deleted_at, created_at, updated_at

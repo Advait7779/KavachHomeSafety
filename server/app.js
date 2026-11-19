@@ -61,6 +61,7 @@ const leadInput = z.object({
 const leadLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false })
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: 'draft-7', legacyHeaders: false })
 const uploadLimiter = rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false })
+const sharedPdfLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: 'draft-7', legacyHeaders: false })
 
 app.get('/api/public/site', asyncRoute(async (_req, res) => {
   const { rows } = await pool.query('SELECT published, updated_at FROM site_content WHERE id = 1')
@@ -465,7 +466,44 @@ for (const kind of ['estimate', 'bill']) {
     if (kind === 'estimate') await streamEstimatePdf(res, document)
     else await streamBillPdf(res, document)
   }))
+
+  app.post(`${base}/:id/share`, asyncRoute(async (req, res) => {
+    const document = await getDocument(kind, req.params.id)
+    if (!document) return res.status(404).json({ error: `${label} not found` })
+    if (!['issued', 'paid'].includes(document.status) || document.draft_data) {
+      return res.status(409).json({ error: `Issue this ${kind} before sharing its PDF` })
+    }
+    if (!String(document.customer?.phone || '').trim()) {
+      return res.status(400).json({ error: 'Add the customer contact number before sharing' })
+    }
+    const token = crypto.randomBytes(32).toString('hex')
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+    const { rows } = await pool.query(
+      "INSERT INTO document_share_links (token_hash, kind, document_id, expires_at) VALUES ($1, $2, $3, now() + interval '30 days') RETURNING expires_at",
+      [tokenHash, kind, document.id],
+    )
+    res.set('Cache-Control', 'private, no-store')
+    res.json({ url: `${siteOrigin(req)}/api/public/documents/${token}/pdf`, expiresAt: rows[0].expires_at })
+  }))
 }
+
+app.get('/api/public/documents/:token/pdf', sharedPdfLimiter, asyncRoute(async (req, res) => {
+  const token = req.params.token
+  if (!/^[a-f0-9]{64}$/.test(token)) return res.status(404).json({ error: 'PDF link not found' })
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+  const { rows } = await pool.query(
+    'SELECT kind, document_id FROM document_share_links WHERE token_hash = $1 AND expires_at > now()',
+    [tokenHash],
+  )
+  if (!rows[0]) return res.status(404).json({ error: 'PDF link has expired or is invalid' })
+  const document = await getDocument(rows[0].kind, rows[0].document_id)
+  if (!document || !['issued', 'paid'].includes(document.status) || document.draft_data) {
+    return res.status(404).json({ error: 'PDF is no longer available' })
+  }
+  res.set({ 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer' })
+  if (rows[0].kind === 'estimate') await streamEstimatePdf(res, document)
+  else await streamBillPdf(res, document)
+}))
 
 app.post('/api/admin/estimates/:id/convert', asyncRoute(async (req, res) => {
   const result = await transaction(async (db) => {
