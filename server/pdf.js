@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pdfFonts, registerPdfFonts } from './pdfFonts.js'
+import { billTermsText, isPaymentTermLine } from '../shared/estimate.js'
 
 const money = (value) => `Rs. ${Number(value).toFixed(2)}`
 const assetDir = fileURLToPath(new URL('../dist/', import.meta.url))
@@ -95,21 +96,25 @@ export async function streamBillPdf(res, bill) {
   if (Number(bill.discount)) totalRow('Discount', `-${bill.discount}`)
   if (Number(bill.tax_total)) totalRow('Tax', bill.tax_total)
   totalRow('Total', bill.total, true)
-  let footerY = Math.max(y + 24, doc.bufferedPageRange().count === 1 ? 550 : y + 24)
+  let footerY = y + 24
   if (footerY > pageBottom) { doc.addPage(); footerY = 50 }
-  const terms = bill.notes || bill.business.billTerms || ''
-  doc.font(pdfFonts.regular).fontSize(9).fillColor('#555555')
-  if (terms) {
-    let termsY = footerY
-    for (const line of terms.split(/\r?\n/)) {
-      doc.font(/^Thank you for choosing Kavach\.?$/i.test(line.trim()) ? pdfFonts.bold : pdfFonts.regular)
-        .text(line || ' ', 48, termsY, { width: 490 })
-      termsY = doc.y
-    }
+  const terms = billTermsText(bill.notes, bill.business)
+  let termsY = footerY
+  if (termsY + 18 > pageBottom) { doc.addPage(); termsY = 50 }
+  doc.fillColor(dark).font(pdfFonts.bold).fontSize(10).text('Terms and conditions', 48, termsY)
+  termsY = doc.y + 7
+  for (const line of terms.split(/\r?\n/)) {
+    const payment = isPaymentTermLine(line)
+    if (payment) termsY += 9
+    const text = line || ' '
+    doc.font(payment ? pdfFonts.bold : pdfFonts.regular).fontSize(9)
+    if (termsY + doc.heightOfString(text, { width: 490 }) > pageBottom) { doc.addPage(); termsY = 50 }
+    doc.text(text, 48, termsY, { width: 490 })
+    termsY = doc.y
   }
-  let paymentY = terms ? doc.y + 12 : footerY
+  let paymentY = termsY + 12
   if (paymentY > pageBottom) { doc.addPage(); paymentY = 50 }
-  if (bill.business.paymentDetails) doc.font(pdfFonts.regular).text(`Payment details: ${bill.business.paymentDetails}`, 48, paymentY, { width: 490 })
+  if (bill.business.paymentDetails) doc.font(pdfFonts.regular).fontSize(9).text(`Payment details: ${bill.business.paymentDetails}`, 48, paymentY, { width: 490 })
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `inline; filename="${bill.bill_number || `draft-${bill.id}`}.pdf"`)
   doc.pipe(res)

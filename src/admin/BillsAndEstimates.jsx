@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowsClockwise, CheckCircle, CloudArrowUp, DownloadSimple, Eye, FilePdf, MagnifyingGlass, Plus, Prohibit, Receipt, Trash, X } from '@phosphor-icons/react'
-import { amountInWords, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
+import { amountInWords, billTermsText, estimateDefaults, fullCompanyName, isPaymentTermLine, mergeEstimate } from '../../shared/estimate.js'
 import { useSite } from '../site/SiteContext'
 import { api, apiBlob } from './api'
 
@@ -36,7 +36,7 @@ function blankForm(business, type = 'estimate') {
     customer: { name: '', phone: '', address: '' },
     issueDate: new Date().toISOString().slice(0, 10),
     dueDate: '',
-    notes: '',
+    notes: type === 'invoice' ? billTermsText('', business) : '',
     estimate: { ...estimateDefaults(business), type },
     discount: 0,
     items: [blankItem()],
@@ -54,7 +54,7 @@ function toForm(bill) {
       customer: draft.customer,
       issueDate: draft.issueDate || '',
       dueDate: draft.dueDate || '',
-      notes: draft.notes || '',
+      notes: estimate.type === 'invoice' ? billTermsText(draft.notes, bill.business) : draft.notes || '',
       estimate,
       discount: draft.discount,
       items: draft.items.length ? draft.items : [blankItem()],
@@ -67,7 +67,7 @@ function toForm(bill) {
     customer: bill.customer,
     issueDate: bill.issue_date?.slice(0, 10) || '',
     dueDate: bill.due_date?.slice(0, 10) || '',
-    notes: bill.notes || '',
+    notes: estimate.type === 'invoice' ? billTermsText(bill.notes, bill.business) : bill.notes || '',
     estimate,
     discount: Number(bill.discount),
     items: bill.items.map((item) => ({

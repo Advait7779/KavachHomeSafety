@@ -9,6 +9,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import defaultContent from '../shared/defaultContent.json' with { type: 'json' }
+import { billTermsText } from '../shared/estimate.js'
 import { pool, transaction } from './db.js'
 import { login, logout, requireAdmin, changePassword } from './auth.js'
 import { calculateBill } from './billing.js'
@@ -518,8 +519,8 @@ app.post('/api/admin/estimates/:id/convert', asyncRoute(async (req, res) => {
     const business = site.rows[0].published.business
     const converted = await db.query(`INSERT INTO bills
       (source_estimate_id, lead_id, customer, business, estimate, issue_date, notes, subtotal, discount, tax_total, total)
-      VALUES ($1, $2, $3, $4, $5, (now() AT TIME ZONE 'Asia/Kolkata')::date, '', $6, $7, 0, $8) RETURNING id`,
-      [source.id, source.lead_id, source.customer, business, { type: 'invoice' }, source.subtotal, source.discount, source.total])
+      VALUES ($1, $2, $3, $4, $5, (now() AT TIME ZONE 'Asia/Kolkata')::date, $6, $7, $8, 0, $9) RETURNING id`,
+      [source.id, source.lead_id, source.customer, business, { type: 'invoice' }, billTermsText(source.estimate?.terms, business), source.subtotal, source.discount, source.total])
     const billId = converted.rows[0].id
     await db.query(`INSERT INTO bill_items (bill_id, description, item_code, quantity, unit, unit_price, tax_rate, sort_order)
       SELECT $1, description, item_code, quantity, unit, unit_price, 0, sort_order FROM estimate_items WHERE estimate_id = $2 ORDER BY sort_order`,

@@ -197,6 +197,7 @@ try {
   const convertedBillId = result.data.id
   assert.equal(result.data.status, 'draft')
   assert.equal(result.data.estimate.type, 'invoice')
+  assert.match(result.data.notes, /SS wire rope/)
   assert.equal(String(result.data.source_estimate_id), String(estimateId))
   assert.deepEqual(result.data.customer, { name: lead.name, phone: lead.phone, address: 'Pune' })
   assert.equal(result.data.items[0].description, 'Safety grill installation')

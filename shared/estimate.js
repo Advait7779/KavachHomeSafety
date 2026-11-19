@@ -19,6 +19,15 @@ export const defaultEstimateTerms = [
 
 export const isPaymentTermLine = (line) => /^\s*Payment\s*:/i.test(String(line))
 
+const isOldBillFooter = (text) => /^Thank you for choosing Kavach\.?$/i.test(text) || /^KAVACH\s*-\s*Invisible Safety Grill(?:\s|$)/i.test(text)
+
+export function billTermsText(notes = '', business = {}) {
+  const savedNotes = String(notes || '').trim()
+  if (savedNotes && !isOldBillFooter(savedNotes)) return savedNotes
+  const configured = String(business.billTerms || '').trim()
+  return configured && !isOldBillFooter(configured) ? configured : defaultEstimateTerms
+}
+
 export function estimateDefaults(business = {}) {
   return {
     type: 'estimate',
