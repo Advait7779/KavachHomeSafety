@@ -413,7 +413,7 @@ export default function BillsAndEstimates({ kind }) {
           const isEstimate = kind === 'estimate'
           const number = isEstimate ? (document.estimate.number || `Estimate #${document.id}`) : (document.bill_number || `Draft #${document.id}`)
           const customerNumber = whatsappNumber(document.customer?.phone)
-          const shareDisabledReason = document.status === 'void' ? 'Cancelled documents cannot be shared' : document.status === 'draft' || document.has_unfinished_fields ? `Issue this ${kind} before sharing` : !customerNumber ? 'Add a valid customer contact number first' : ''
+          const shareDisabledReason = document.status === 'void' ? 'Cancelled documents cannot be shared' : document.has_unfinished_fields ? `Complete and save this ${kind} before sharing` : !customerNumber ? 'Add a valid customer contact number first' : ''
           return <div key={document.id} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center border-b border-kavach-border/60 last:border-0 hover:bg-white/5">
             <Link to={`${basePath}/${document.id}`} className="grid min-w-0 gap-2 px-5 py-4 text-sm lg:grid-cols-[1.05fr_1.05fr_1fr_0.65fr_0.65fr] lg:gap-3">
               <strong className="truncate">{number}</strong>

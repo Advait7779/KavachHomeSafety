@@ -167,6 +167,8 @@ try {
   assert.equal(result.data.draft_data.notes, 'Call customer later')
   result = await request(`/api/admin/estimates/${estimateId}/convert`, { method: 'POST' })
   assert.equal(result.response.status, 409)
+  result = await request(`/api/admin/estimates/${estimateId}/share`, { method: 'POST' })
+  assert.equal(result.response.status, 409)
   result = await request(`/api/admin/estimates/${estimateId}`, { method: 'PATCH', body: JSON.stringify({ ...billPayload, estimate: { type: 'estimate' } }) })
   assert.equal(result.response.status, 200)
   assert.equal(result.data.draft_data, null)
@@ -175,11 +177,8 @@ try {
   assert.equal(result.response.headers.get('content-type'), 'application/pdf')
   assert.ok((await result.response.arrayBuffer()).byteLength > 1000)
   result = await request(`/api/admin/estimates/${estimateId}/share`, { method: 'POST' })
-  assert.equal(result.response.status, 409)
-  result = await request(`/api/admin/estimates/${estimateId}/issue`, { method: 'POST' })
   assert.equal(result.response.status, 200)
-  result = await request(`/api/admin/estimates/${estimateId}/share`, { method: 'POST' })
-  assert.equal(result.response.status, 200)
+  assert.equal(new URL(result.data.url).origin, base)
   const estimateSharePath = new URL(result.data.url).pathname
   assert.match(estimateSharePath, /^\/api\/public\/documents\/[a-f0-9]{64}\/pdf$/)
   const sessionCookie = cookie
@@ -191,6 +190,8 @@ try {
   cookie = sessionCookie
   result = await request('/api/public/documents/not-a-token/pdf')
   assert.equal(result.response.status, 404)
+  result = await request(`/api/admin/estimates/${estimateId}/issue`, { method: 'POST' })
+  assert.equal(result.response.status, 200)
   result = await request(`/api/admin/estimates/${estimateId}/convert`, { method: 'POST' })
   assert.equal(result.response.status, 201)
   const convertedBillId = result.data.id
@@ -203,6 +204,9 @@ try {
   result = await request(`/api/admin/bills/${convertedBillId}/pdf`)
   assert.equal(result.response.headers.get('content-type'), 'application/pdf')
   assert.ok((await result.response.arrayBuffer()).byteLength > 1000)
+  result = await request(`/api/admin/bills/${convertedBillId}/share`, { method: 'POST' })
+  assert.equal(result.response.status, 200)
+  assert.equal(new URL(result.data.url).origin, base)
   result = await request(`/api/admin/estimates/${estimateId}/convert`, { method: 'POST' })
   assert.equal(result.response.status, 200)
   assert.equal(result.data.id, convertedBillId)

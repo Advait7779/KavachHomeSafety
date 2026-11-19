@@ -470,9 +470,8 @@ for (const kind of ['estimate', 'bill']) {
   app.post(`${base}/:id/share`, asyncRoute(async (req, res) => {
     const document = await getDocument(kind, req.params.id)
     if (!document) return res.status(404).json({ error: `${label} not found` })
-    if (!['issued', 'paid'].includes(document.status) || document.draft_data) {
-      return res.status(409).json({ error: `Issue this ${kind} before sharing its PDF` })
-    }
+    if (document.status === 'void') return res.status(409).json({ error: `Cancelled ${kind}s cannot be shared` })
+    if (document.draft_data) return res.status(409).json({ error: `Complete and save this ${kind} before sharing its PDF` })
     if (!String(document.customer?.phone || '').trim()) {
       return res.status(400).json({ error: 'Add the customer contact number before sharing' })
     }
@@ -483,7 +482,8 @@ for (const kind of ['estimate', 'bill']) {
       [tokenHash, kind, document.id],
     )
     res.set('Cache-Control', 'private, no-store')
-    res.json({ url: `${siteOrigin(req)}/api/public/documents/${token}/pdf`, expiresAt: rows[0].expires_at })
+    const origin = process.env.NODE_ENV === 'production' ? siteOrigin(req) : `${req.protocol}://${req.get('host')}`
+    res.json({ url: `${origin}/api/public/documents/${token}/pdf`, expiresAt: rows[0].expires_at })
   }))
 }
 
@@ -497,7 +497,7 @@ app.get('/api/public/documents/:token/pdf', sharedPdfLimiter, asyncRoute(async (
   )
   if (!rows[0]) return res.status(404).json({ error: 'PDF link has expired or is invalid' })
   const document = await getDocument(rows[0].kind, rows[0].document_id)
-  if (!document || !['issued', 'paid'].includes(document.status) || document.draft_data) {
+  if (!document || document.status === 'void' || document.draft_data) {
     return res.status(404).json({ error: 'PDF is no longer available' })
   }
   res.set({ 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer' })
