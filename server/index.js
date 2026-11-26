@@ -15,6 +15,8 @@ const oldAddress = 'Padmavati building, kale colony lane no 2, aalandi dighi roa
 const newAddress = defaultContent.business.address
 const oldPrimaryPhone = '7219700401'
 const newPrimaryPhone = defaultContent.business.phone
+const oldMapUrl = 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3780.5!2d73.87!3d18.67!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTjCsDQwJzEyLjAiTiA3M8KwNTInMTIuMCJF!5e0!3m2!1sen!2sin!4v1'
+const newMapUrl = defaultContent.contact.mapUrl
 await pool.query(
   `UPDATE site_content SET
     published = jsonb_set(published, '{business,address}', to_jsonb($2::text)),
@@ -42,6 +44,20 @@ await pool.query(
     updated_at = now()
    WHERE id = 1 AND draft->'business'->>'phone' = $1 AND draft->'business'->>'secondaryPhone' = $2`,
   [oldPrimaryPhone, newPrimaryPhone],
+)
+await pool.query(
+  `UPDATE site_content SET
+    published = jsonb_set(published, '{contact,mapUrl}', to_jsonb($2::text)),
+    updated_at = now()
+   WHERE id = 1 AND published->'contact'->>'mapUrl' = $1`,
+  [oldMapUrl, newMapUrl],
+)
+await pool.query(
+  `UPDATE site_content SET
+    draft = jsonb_set(draft, '{contact,mapUrl}', to_jsonb($2::text)),
+    updated_at = now()
+   WHERE id = 1 AND draft->'contact'->>'mapUrl' = $1`,
+  [oldMapUrl, newMapUrl],
 )
 await pool.query(
   `UPDATE estimates SET
